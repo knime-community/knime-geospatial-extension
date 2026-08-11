@@ -1,0 +1,36 @@
+This bundle vendors the following third-party libraries under lib/, following the same
+vendoring convention already used by org.knime.geospatial.core (flat jars on the
+Bundle-ClassPath, since this ecosystem resolves dependencies via p2/Tycho rather than plain
+Maven coordinates). Each family's own license text should be added here before any public
+release; this file is a placeholder inventory, not a substitute for the actual license files.
+
+GeoTools 31.2 modules (gt-*, net.opengis.*, org.w3.xlink) ................ LGPL 2.1
+  https://github.com/geotools/geotools/blob/main/LICENSE.md
+JTS Topology Suite (jts-core) ............................................ EDL 1.0 / EPL 1.0
+GeographicLib-Java ........................................................ MIT
+Java Advanced Imaging (jai_core, jai_codec, jai_imageio) + imageio-ext-* .. BSD-ish / JAI license
+JAITools (jt-*) ............................................................ BSD 3-Clause
+HSQLDB (used by gt-epsg-hsql for the bundled EPSG database) ............... BSD-style
+SQLite JDBC driver (sqlite-jdbc) — GeoPackage storage backend ............. Apache 2.0
+Eclipse EMF (org.eclipse.emf.*), Eclipse XSD (org.eclipse.xsd) ............ EPL 2.0
+JAXB runtime + API, istack-commons-runtime, txw2, stax-ex, FastInfoset ... EDL 1.0 / EPL 1.0
+Apache Commons (commons-collections4, commons-dbcp, commons-jxpath,
+  commons-pool, commons-text) .............................................. Apache 2.0
+Units of Measurement (indriya, unit-api, uom-lib-common, si-*, systems-common) . BSD / Apache 2.0
+EJML (ejml-core, ejml-ddense) .............................................. Apache 2.0
+PicoContainer ............................................................... BSD
+Apache Parquet Java (parquet-*) — GeoParquet read/write .................... Apache 2.0
+Snappy (snappy-java), Zstd (zstd-jni), Aircompressor — Parquet codecs ...... Apache 2.0 / BSD
+Brotli4j (brotli4j, native-linux-x86_64, service) — Parquet BROTLI codec .. MIT
+  NOTE: only the linux-x86_64 native artifact is vendored. Add the macOS (x86_64/aarch64)
+  and Windows native-* artifacts here (same coordinates as brotli4j core, matching version)
+  before shipping BROTLI compression support on those platforms; the GeoFile Writer node
+  should catch UnsatisfiedLinkError and surface a clear error if the native lib is missing
+  for the current platform rather than crashing.
+json-simple ................................................................. Apache 2.0
+xml-commons-resolver ........................................................ Apache 2.0
+
+Deliberately NOT vendored here (already provided by KNIME's own target-platform OSGi bundles
+and required via Require-Bundle instead, to avoid duplicate classes on the classpath):
+guava, guava-failureaccess, commons-io, commons-lang3, jackson-core/-databind/-annotations,
+jackson-datatype-jdk8, slf4j-api.

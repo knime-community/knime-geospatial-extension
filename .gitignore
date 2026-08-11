@@ -12,3 +12,7 @@ tests/*.ipynb
 .pixi
 *.egg-info
 local-update-site
+
+# Java/Maven-Tycho build output
+target/
+.flattened-pom.xml

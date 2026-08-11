@@ -1,0 +1,192 @@
+/*
+ * ------------------------------------------------------------------------
+ *  Copyright by KNIME AG, Zurich, Switzerland
+ *  Website: http://www.knime.com; Email: contact@knime.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License, Version 3, as
+ *  published by the Free Software Foundation.
+ * ------------------------------------------------------------------------
+ */
+package org.knime.geospatial.io.geopackagereader;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Consumer;
+
+import org.geotools.api.data.SimpleFeatureReader;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.geopkg.FeatureEntry;
+import org.geotools.geopkg.GeoPackage;
+import org.knime.core.data.DataCell;
+import org.knime.core.data.DataRow;
+import org.knime.core.data.DataTableSpec;
+import org.knime.core.data.RowKey;
+import org.knime.core.data.def.DefaultRow;
+import org.knime.core.data.def.StringCell;
+import org.knime.core.node.BufferedDataContainer;
+import org.knime.core.node.BufferedDataTable;
+import org.knime.core.node.CanceledExecutionException;
+import org.knime.core.node.ExecutionContext;
+import org.knime.core.node.InvalidSettingsException;
+import org.knime.core.node.KNIMEException;
+import org.knime.core.node.message.Message;
+import org.knime.filehandling.core.connections.FSFiles.LocalFileHandle;
+import org.knime.filehandling.core.connections.FSPath;
+import org.knime.filehandling.core.defaultnodesettings.status.StatusMessage;
+import org.knime.geospatial.io.util.GeoTypeMapping;
+import org.knime.geospatial.io.util.LocalFileStaging;
+import org.knime.node.DefaultModel.ConfigureInput;
+import org.knime.node.DefaultModel.ConfigureOutput;
+import org.knime.node.DefaultModel.ExecuteInput;
+import org.knime.node.DefaultModel.ExecuteOutput;
+import org.knime.node.DefaultNode;
+import org.knime.node.DefaultNodeFactory;
+import org.knime.node.parameters.widget.file.FileSelectionConfig;
+
+/**
+ * Node factory for GeoPackage Reader, 1:1 mirroring {@code GeoPackageReaderNode} in the Python Geospatial Analytics
+ * Extension's {@code knime_extension/src/nodes/io.py}: reads a chosen layer (by name, or numeric index if the
+ * configured value isn't a layer name, falling back to the first layer) plus a second output table listing all
+ * layer names.
+ */
+public final class GeoPackageReaderNodeFactory extends DefaultNodeFactory {
+
+    private static final FileSelectionConfig FILE_SELECTION_CONFIG = FileSelectionConfig.builder().build();
+
+    private static final DefaultNode NODE = DefaultNode.create() //
+        .name("GeoPackage Reader") //
+        .icon("icons/GeoPackageReader.png") //
+        .shortDescription("""
+                Read GeoPackage layer
+                """) //
+        .fullDescription("""
+                This node reads a GeoPackage file. You can specify the layer to read by name or by numeric index
+                (starting at 0); if the layer is empty or does not match, the first layer is read. The node also
+                outputs the names of all layers as a second output table.
+                """) //
+        .sinceVersion(5, 13, 0) //
+        .ports(p -> p //
+            .addOutputTable("Geodata table", "Geodata from the input file path.") //
+            .addOutputTable("Geodata Layer", "Layer information from the input file path.")) //
+        .model(m -> m //
+            .parametersClass(GeoPackageReaderNodeParameters.class) //
+            .configure(GeoPackageReaderNodeFactory::configure) //
+            .execute(GeoPackageReaderNodeFactory::execute)) //
+        .nodeType(NodeType.Source);
+
+    /** Constructor used by the framework. */
+    public GeoPackageReaderNodeFactory() {
+        super(NODE);
+    }
+
+    private static void configure(final ConfigureInput in, final ConfigureOutput out) throws InvalidSettingsException {
+        // Layer schema is only knowable once the file is actually read.
+        out.setOutSpec(0, null);
+        out.setOutSpec(1, null);
+    }
+
+    private static void execute(final ExecuteInput in, final ExecuteOutput out)
+        throws CanceledExecutionException, KNIMEException {
+        final var parameters = in.<GeoPackageReaderNodeParameters> getParameters();
+        final var exec = in.getExecutionContext();
+        exec.setProgress(0.1, "Reading file (this might take a while without progress changes)");
+
+        final Consumer<StatusMessage> statusConsumer = msg -> {
+            if (msg.getType() == StatusMessage.MessageType.WARNING || msg.getType() == StatusMessage.MessageType.ERROR) {
+                out.setWarningMessage(msg.getMessage());
+            }
+        };
+
+        try (final var accessor = parameters.m_inputFile.getPathAccessor(FILE_SELECTION_CONFIG, Optional.empty())) {
+            final List<FSPath> paths = accessor.getFSPaths(statusConsumer);
+            final FSPath path = paths.get(0);
+            final LocalFileHandle local = LocalFileStaging.resolveExistingToLocalFile(path);
+            try (var geoPackage = new GeoPackage(new java.io.File(local.path()))) {
+                final List<FeatureEntry> entries = geoPackage.features();
+                if (entries.isEmpty()) {
+                    throw new KNIMEException("The GeoPackage file contains no feature layers.");
+                }
+
+                final BufferedDataTable layerListTable = buildLayerListTable(entries, exec);
+                final FeatureEntry entry = resolveLayer(entries, parameters.m_layer);
+
+                try (SimpleFeatureReader reader = geoPackage.reader(entry, null, null)) {
+                    final BufferedDataTable dataTable = readFeatures(reader, exec);
+                    out.setOutData(0, dataTable);
+                    out.setOutData(1, layerListTable);
+                }
+            } finally {
+                local.close();
+            }
+        } catch (final CanceledExecutionException | KNIMEException e) {
+            throw e;
+        } catch (final Exception e) {
+            throw KNIMEException.of(Message.fromSummary("Error reading file: " + e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Mirrors the Python node's {@code _get_layer}: an exact name match wins, else a numeric index (0-99) if the
+     * configured value is all-digits and in range, else the first layer.
+     */
+    private static FeatureEntry resolveLayer(final List<FeatureEntry> entries, final String configuredLayer) {
+        for (final FeatureEntry entry : entries) {
+            if (entry.getTableName().equals(configuredLayer)) {
+                return entry;
+            }
+        }
+        if (configuredLayer != null && configuredLayer.matches("\\d+")) {
+            final int index = Integer.parseInt(configuredLayer);
+            if (index >= 0 && index < 100 && index < entries.size()) {
+                return entries.get(index);
+            }
+        }
+        return entries.get(0);
+    }
+
+    private static BufferedDataTable buildLayerListTable(final List<FeatureEntry> entries, final ExecutionContext exec) {
+        final DataTableSpec spec =
+            new DataTableSpec(new org.knime.core.data.DataColumnSpecCreator("layerlist", StringCell.TYPE).createSpec());
+        final BufferedDataContainer container = exec.createDataContainer(spec, false);
+        long rowIdx = 0;
+        for (final FeatureEntry entry : entries) {
+            container.addRowToTable(
+                new DefaultRow(RowKey.createRowKey(rowIdx++), new StringCell(entry.getTableName())));
+        }
+        container.close();
+        return container.getTable();
+    }
+
+    private static BufferedDataTable readFeatures(final SimpleFeatureReader reader, final ExecutionContext exec)
+        throws CanceledExecutionException, KNIMEException {
+        final SimpleFeatureType featureType = reader.getFeatureType();
+        final DataTableSpec spec = GeoTypeMapping.toTableSpec(featureType);
+        final int geoColIdx = featureType.indexOf(featureType.getGeometryDescriptor().getLocalName());
+        final BufferedDataContainer container = exec.createDataContainer(spec, false);
+        long rowIdx = 0;
+        try {
+            while (reader.hasNext()) {
+                exec.checkCanceled();
+                final SimpleFeature feature = reader.next();
+                final DataCell[] cells = new DataCell[spec.getNumColumns()];
+                for (int i = 0; i < cells.length; i++) {
+                    if (i == geoColIdx) {
+                        cells[i] = GeoTypeMapping.toGeoCell(
+                            (org.locationtech.jts.geom.Geometry)feature.getAttribute(i),
+                            featureType.getCoordinateReferenceSystem());
+                    } else {
+                        cells[i] = GeoTypeMapping.toDataCell(feature.getAttribute(i));
+                    }
+                }
+                final DataRow row = new DefaultRow(RowKey.createRowKey(rowIdx++), cells);
+                container.addRowToTable(row);
+            }
+        } catch (final java.io.IOException e) {
+            throw KNIMEException.of(Message.fromSummary("Error reading features: " + e.getMessage()), e);
+        }
+        container.close();
+        return container.getTable();
+    }
+}

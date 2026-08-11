@@ -1,0 +1,136 @@
+/*
+ * ------------------------------------------------------------------------
+ *  Copyright by KNIME AG, Zurich, Switzerland
+ *  Website: http://www.knime.com; Email: contact@knime.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License, Version 3, as
+ *  published by the Free Software Foundation.
+ * ------------------------------------------------------------------------
+ */
+package org.knime.geospatial.io.geofilewriter;
+
+import org.knime.filehandling.core.connections.FSCategory;
+import org.knime.filehandling.core.connections.FSLocation;
+import org.knime.filehandling.core.connections.RelativeTo;
+import org.knime.geospatial.core.data.GeoValue;
+import org.knime.geospatial.io.util.GeoFileEncoding;
+import org.knime.node.parameters.NodeParameters;
+import org.knime.node.parameters.Widget;
+import org.knime.node.parameters.layout.Layout;
+import org.knime.node.parameters.layout.Section;
+import org.knime.node.parameters.migration.LoadDefaultsForAbsentFields;
+import org.knime.node.parameters.updates.Effect;
+import org.knime.node.parameters.updates.Effect.EffectType;
+import org.knime.node.parameters.updates.EffectPredicate;
+import org.knime.node.parameters.updates.EffectPredicateProvider;
+import org.knime.node.parameters.updates.ParameterReference;
+import org.knime.node.parameters.updates.ValueReference;
+import org.knime.node.parameters.widget.choices.ChoicesProvider;
+import org.knime.node.parameters.widget.choices.Label;
+import org.knime.node.parameters.widget.choices.ValueSwitchWidget;
+import org.knime.node.parameters.widget.choices.util.CompatibleColumnsProvider;
+import org.knime.node.parameters.widget.file.FileSelection;
+import org.knime.node.parameters.widget.file.FileWriterWidget;
+
+/**
+ * Node parameters for GeoFile Writer, 1:1 mirroring {@code GeoFileWriterNode} in the Python Geospatial Analytics
+ * Extension's {@code knime_extension/src/nodes/io.py}.
+ */
+@LoadDefaultsForAbsentFields
+final class GeoFileWriterNodeParameters implements NodeParameters {
+
+    @Section(title = "Output File")
+    interface OutputFileSection {
+    }
+
+    @Section(title = "Encoding")
+    interface EncodingSection {
+    }
+
+    /** Mirrors the Python node's {@code dataformat} StringParameter choices exactly. */
+    enum GeoFileFormat {
+            @Label(value = "Shapefile", description = "Write an ESRI Shapefile (.shp/.shx/.dbf/.prj/.cpg).")
+            SHAPEFILE,
+            @Label(value = "GeoJSON", description = "Write a GeoJSON (.geojson) file.")
+            GEOJSON,
+            @Label(value = "GeoParquet", description = "Write a GeoParquet (.parquet) file.")
+            GEOPARQUET,
+            @Label(value = "GML", description = "Write a Geography Markup Language (.gml) file.")
+            GML
+    }
+
+    /** Mirrors the Python node's {@code Compression} enum exactly. */
+    enum ParquetCompression {
+            @Label(value = "None", description = "Does not use any compression at all.")
+            NONE,
+            @Label(value = "Brotli", description = "Successor to gzip with better compression.")
+            BROTLI,
+            @Label(value = "gzip", description = "Widely used and supported compression format.")
+            GZIP,
+            @Label(value = "Snappy",
+                description = "Compression format aiming for very high speed and reasonable compression.")
+            SNAPPY
+    }
+
+    /** Mirrors the Python node's {@code ExistingFile} enum exactly. */
+    enum ExistingFile {
+            @Label(value = "Fail",
+                description = "Will issue an error during the node's execution (to prevent unintentional "
+                    + "overwrite).")
+            FAIL,
+            @Label(value = "Overwrite", description = "Will replace any existing file.")
+            OVERWRITE
+    }
+
+    interface FormatRef extends ParameterReference<GeoFileFormat> {
+    }
+
+    static final class IsGeoParquet implements EffectPredicateProvider {
+        @Override
+        public EffectPredicate init(final PredicateInitializer i) {
+            return i.getEnum(FormatRef.class).isOneOf(GeoFileFormat.GEOPARQUET);
+        }
+    }
+
+    @Widget(title = "Geometry column", description = "Select the geometry column for Geodata.")
+    @ChoicesProvider(GeoColumnChoicesProvider.class)
+    @Layout(OutputFileSection.class)
+    String m_geoColumn;
+
+    static final class GeoColumnChoicesProvider extends CompatibleColumnsProvider {
+        protected GeoColumnChoicesProvider() {
+            super(GeoValue.class);
+        }
+    }
+
+    @Widget(title = "Output file", description = """
+            The file to write the structures to. The file extension (.shp, .geojson, .parquet, or .gml) is appended
+            automatically depending on the selected file format if not specified.\
+            """)
+    @FileWriterWidget
+    @Layout(OutputFileSection.class)
+    FileSelection m_outputFile = new FileSelection(
+        new FSLocation(FSCategory.RELATIVE, RelativeTo.WORKFLOW_DATA.getSettingsValue(), "output.shp"));
+
+    @Widget(title = "Output file format", description = "The file format to use.")
+    @ValueSwitchWidget
+    @ValueReference(FormatRef.class)
+    @Layout(OutputFileSection.class)
+    GeoFileFormat m_format = GeoFileFormat.SHAPEFILE;
+
+    @Widget(title = "File compression", description = "The name of the compression to use or none.")
+    @ValueSwitchWidget
+    @Effect(predicate = IsGeoParquet.class, type = EffectType.SHOW)
+    @Layout(OutputFileSection.class)
+    ParquetCompression m_parquetCompression = ParquetCompression.NONE;
+
+    @Widget(title = "If exists", description = "Specifies the action to take if the output file already exists.")
+    @ValueSwitchWidget
+    @Layout(OutputFileSection.class)
+    ExistingFile m_overwritePolicy = ExistingFile.FAIL;
+
+    @Widget(title = "Encoding", description = "Select the encoding for saving the data file.")
+    @Layout(EncodingSection.class)
+    GeoFileEncoding m_encoding = GeoFileEncoding.AUTO;
+}

@@ -1,0 +1,10 @@
+Copyright by KNIME AG, Zurich, Switzerland
+
+Licensed under the GNU General Public License, Version 3, with the same "Additional Permissions
+according to Sec. 7" that KNIME applies to its other node extensions (see e.g.
+org.knime.chem.base/LICENSE.txt in the knime-chemistry repository for the full text — this file
+is a placeholder pending that exact text being copied in before release).
+
+Third-party libraries vendored under lib/ retain their own licenses; see
+lib/THIRD-PARTY-NOTICES.txt for the inventory and lib/*-LICENSE.txt (to be added) for the full
+license text of each.
