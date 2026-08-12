@@ -14,6 +14,7 @@ import org.knime.filehandling.core.connections.FSCategory;
 import org.knime.filehandling.core.connections.FSLocation;
 import org.knime.filehandling.core.connections.RelativeTo;
 import org.knime.geospatial.io.util.GeoFileEncoding;
+import org.knime.node.parameters.Advanced;
 import org.knime.node.parameters.NodeParameters;
 import org.knime.node.parameters.Widget;
 import org.knime.node.parameters.migration.LoadDefaultsForAbsentFields;
@@ -35,5 +36,6 @@ final class GeoFileReaderNodeParameters implements NodeParameters {
         new FSLocation(FSCategory.RELATIVE, RelativeTo.WORKFLOW_DATA.getSettingsValue(), "input.shp"));
 
     @Widget(title = "Encoding", description = "Select the encoding for reading the data file.")
+    @Advanced
     GeoFileEncoding m_encoding = GeoFileEncoding.AUTO;
 }

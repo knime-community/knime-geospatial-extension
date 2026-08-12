@@ -15,6 +15,7 @@ import org.knime.filehandling.core.connections.FSLocation;
 import org.knime.filehandling.core.connections.RelativeTo;
 import org.knime.geospatial.core.data.GeoValue;
 import org.knime.geospatial.io.util.GeoFileEncoding;
+import org.knime.node.parameters.Advanced;
 import org.knime.node.parameters.NodeParameters;
 import org.knime.node.parameters.Widget;
 import org.knime.node.parameters.migration.LoadDefaultsForAbsentFields;
@@ -67,6 +68,7 @@ final class GeoPackageWriterNodeParameters implements NodeParameters {
     String m_layer = "new";
 
     @Widget(title = "Encoding", description = "Select the encoding for saving the data file.")
+    @Advanced
     GeoFileEncoding m_encoding = GeoFileEncoding.AUTO;
 
     @Widget(title = "If exists", description = "Specifies the action to take if the output file already exists.")

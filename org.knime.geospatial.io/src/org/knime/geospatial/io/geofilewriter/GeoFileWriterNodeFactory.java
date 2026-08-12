@@ -20,7 +20,6 @@ import java.util.function.Consumer;
 
 import org.geotools.api.data.DataStore;
 import org.geotools.api.data.SimpleFeatureStore;
-import org.geotools.api.feature.simple.SimpleFeature;
 import org.geotools.api.feature.simple.SimpleFeatureType;
 import org.geotools.data.collection.ListFeatureCollection;
 import org.geotools.data.shapefile.ShapefileDataStoreFactory;
@@ -38,7 +37,6 @@ import org.knime.filehandling.core.connections.FSFiles;
 import org.knime.filehandling.core.connections.FSPath;
 import org.knime.filehandling.core.defaultnodesettings.status.StatusMessage;
 import org.knime.geospatial.core.data.GeoValue;
-import org.knime.geospatial.io.geofilewriter.GeoFileWriterNodeParameters.GeoFileFormat;
 import org.knime.geospatial.io.util.GeoFileNames;
 import org.knime.geospatial.io.util.GeoTypeMapping;
 import org.knime.geospatial.io.util.LocalFileStaging;
@@ -78,7 +76,6 @@ public final class GeoFileWriterNodeFactory extends DefaultNodeFactory {
             .execute(GeoFileWriterNodeFactory::execute)) //
         .nodeType(NodeType.Sink);
 
-    /** Constructor used by the framework. */
     public GeoFileWriterNodeFactory() {
         super(NODE);
     }
@@ -152,8 +149,7 @@ public final class GeoFileWriterNodeFactory extends DefaultNodeFactory {
             if (i == geoColIdx) {
                 builder.add(name, Geometry.class, crs);
             } else {
-                builder.add(name, String.class); // conservative: attribute round-tripping is out of scope for
-                                                  // this first pass, string representation is always safe
+                builder.add(name, String.class);
             }
         }
         return builder.buildFeatureType();

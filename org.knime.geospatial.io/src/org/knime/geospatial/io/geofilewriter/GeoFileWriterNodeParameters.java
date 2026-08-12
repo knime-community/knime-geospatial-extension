@@ -15,8 +15,10 @@ import org.knime.filehandling.core.connections.FSLocation;
 import org.knime.filehandling.core.connections.RelativeTo;
 import org.knime.geospatial.core.data.GeoValue;
 import org.knime.geospatial.io.util.GeoFileEncoding;
+import org.knime.node.parameters.Advanced;
 import org.knime.node.parameters.NodeParameters;
 import org.knime.node.parameters.Widget;
+import org.knime.node.parameters.layout.After;
 import org.knime.node.parameters.layout.Layout;
 import org.knime.node.parameters.layout.Section;
 import org.knime.node.parameters.migration.LoadDefaultsForAbsentFields;
@@ -39,14 +41,6 @@ import org.knime.node.parameters.widget.file.FileWriterWidget;
  */
 @LoadDefaultsForAbsentFields
 final class GeoFileWriterNodeParameters implements NodeParameters {
-
-    @Section(title = "Output File")
-    interface OutputFileSection {
-    }
-
-    @Section(title = "Encoding")
-    interface EncodingSection {
-    }
 
     /** Mirrors the Python node's {@code dataformat} StringParameter choices exactly. */
     enum GeoFileFormat {
@@ -95,7 +89,6 @@ final class GeoFileWriterNodeParameters implements NodeParameters {
 
     @Widget(title = "Geometry column", description = "Select the geometry column for Geodata.")
     @ChoicesProvider(GeoColumnChoicesProvider.class)
-    @Layout(OutputFileSection.class)
     String m_geoColumn;
 
     static final class GeoColumnChoicesProvider extends CompatibleColumnsProvider {
@@ -109,28 +102,24 @@ final class GeoFileWriterNodeParameters implements NodeParameters {
             automatically depending on the selected file format if not specified.\
             """)
     @FileWriterWidget
-    @Layout(OutputFileSection.class)
     FileSelection m_outputFile = new FileSelection(
         new FSLocation(FSCategory.RELATIVE, RelativeTo.WORKFLOW_DATA.getSettingsValue(), "output.shp"));
 
     @Widget(title = "Output file format", description = "The file format to use.")
     @ValueSwitchWidget
     @ValueReference(FormatRef.class)
-    @Layout(OutputFileSection.class)
     GeoFileFormat m_format = GeoFileFormat.SHAPEFILE;
 
     @Widget(title = "File compression", description = "The name of the compression to use or none.")
     @ValueSwitchWidget
     @Effect(predicate = IsGeoParquet.class, type = EffectType.SHOW)
-    @Layout(OutputFileSection.class)
     ParquetCompression m_parquetCompression = ParquetCompression.NONE;
 
     @Widget(title = "If exists", description = "Specifies the action to take if the output file already exists.")
     @ValueSwitchWidget
-    @Layout(OutputFileSection.class)
     ExistingFile m_overwritePolicy = ExistingFile.FAIL;
 
     @Widget(title = "Encoding", description = "Select the encoding for saving the data file.")
-    @Layout(EncodingSection.class)
+    @Advanced
     GeoFileEncoding m_encoding = GeoFileEncoding.AUTO;
 }

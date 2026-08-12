@@ -11,6 +11,7 @@
 package org.knime.geospatial.io.geopackagewriter;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -79,7 +80,6 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
             .execute(GeoPackageWriterNodeFactory::execute)) //
         .nodeType(NodeType.Sink);
 
-    /** Constructor used by the framework. */
     public GeoPackageWriterNodeFactory() {
         super(NODE);
     }
@@ -148,7 +148,8 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
     }
 
     private static void writeLayer(final Path localFile, final BufferedDataTable table, final int geoColIdx,
-        final String layerName, final ExecutionContext exec) throws Exception {
+        final String layerName, final ExecutionContext exec) throws IOException, CanceledExecutionException,
+    	IndexOutOfBoundsException, KNIMEException {
         try (var geoPackage = new GeoPackage(new File(localFile.toString()))) {
             final DataTableSpec spec = table.getDataTableSpec();
             final var crs = table.size() == 0 ? org.geotools.referencing.crs.DefaultGeographicCRS.WGS84
