@@ -61,7 +61,7 @@ public final class GeoFileWriterNodeFactory extends DefaultNodeFactory {
 
     private static final DefaultNode NODE = DefaultNode.create() //
         .name("GeoFile Writer") //
-        .icon("icons/GeoFileWriter.png") //
+        .icon("./GeoFileWriter.png") //
         .shortDescription("""
                 Write single layer GeoFile.
                 """) //

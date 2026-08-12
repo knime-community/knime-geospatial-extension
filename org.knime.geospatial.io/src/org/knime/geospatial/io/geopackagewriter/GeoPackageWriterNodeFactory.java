@@ -62,7 +62,7 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
 
     private static final DefaultNode NODE = DefaultNode.create() //
         .name("GeoPackage Writer") //
-        .icon("icons/GeoPackageWriter.png") //
+        .icon("./GeoPackageWriter.png") //
         .shortDescription("""
                 Write GeoPackage layer.
                 """) //

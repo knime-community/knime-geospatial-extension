@@ -67,7 +67,7 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
 
     private static final DefaultNode NODE = DefaultNode.create() //
         .name("GeoFile Reader") //
-        .icon("icons/GeoFileReader.png") //
+        .icon("./GeoFileReader.png") //
         .shortDescription("""
                 Read single layer GeoFile.
                 """) //
