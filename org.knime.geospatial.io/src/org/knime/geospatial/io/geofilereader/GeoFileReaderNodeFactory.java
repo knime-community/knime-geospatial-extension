@@ -85,7 +85,6 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
             .execute(GeoFileReaderNodeFactory::execute)) //
         .nodeType(NodeType.Source);
 
-    /** Constructor used by the framework. */
     public GeoFileReaderNodeFactory() {
         super(NODE);
     }
@@ -166,7 +165,7 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
             final DataStore dataStore = new ShapefileDataStoreFactory().createDataStore(params);
             try {
                 final SimpleFeatureSource source =
-                    (SimpleFeatureSource)dataStore.getFeatureSource(dataStore.getTypeNames()[0]);
+                    dataStore.getFeatureSource(dataStore.getTypeNames()[0]);
                 return featureSourceToTable(source, exec);
             } finally {
                 dataStore.dispose();

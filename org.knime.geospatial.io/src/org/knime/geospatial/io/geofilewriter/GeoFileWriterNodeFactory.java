@@ -112,8 +112,8 @@ public final class GeoFileWriterNodeFactory extends DefaultNodeFactory {
 
         try (final var accessor = parameters.m_outputFile.getPathAccessor(FILE_SELECTION_CONFIG, Optional.empty())) {
             final FSPath rawDestPath = accessor.getOutputPath(statusConsumer);
-            final FSPath destPath = (FSPath)rawDestPath.getParent()
-                .resolve(GeoFileNames.ensureExtension(rawDestPath.getFileName().toString(), extension));
+            final FSPath destPath = (FSPath)rawDestPath
+                .resolveSibling(GeoFileNames.ensureExtension(rawDestPath.getFileName().toString(), extension));
 
             final var openOptions = switch (parameters.m_overwritePolicy) {
                 case OVERWRITE -> new java.nio.file.OpenOption[]{StandardOpenOption.CREATE,

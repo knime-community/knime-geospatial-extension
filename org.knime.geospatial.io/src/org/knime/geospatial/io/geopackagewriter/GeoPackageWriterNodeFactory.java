@@ -110,8 +110,8 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
 
         try (final var accessor = parameters.m_outputFile.getPathAccessor(FILE_SELECTION_CONFIG, Optional.empty())) {
             final FSPath rawDestPath = accessor.getOutputPath(statusConsumer);
-            final FSPath destPath = (FSPath)rawDestPath.getParent()
-                .resolve(GeoFileNames.ensureExtension(rawDestPath.getFileName().toString(), ".gpkg"));
+            final FSPath destPath = (FSPath)rawDestPath
+                .resolveSibling(GeoFileNames.ensureExtension(rawDestPath.getFileName().toString(), ".gpkg"));
 
             final boolean destExists = Files.exists(destPath);
             if (destExists && parameters.m_overwritePolicy == ExistingFile.FAIL) {

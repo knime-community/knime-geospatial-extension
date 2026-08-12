@@ -76,7 +76,6 @@ public final class GeoPackageReaderNodeFactory extends DefaultNodeFactory {
             .execute(GeoPackageReaderNodeFactory::execute)) //
         .nodeType(NodeType.Source);
 
-    /** Constructor used by the framework. */
     public GeoPackageReaderNodeFactory() {
         super(NODE);
     }
