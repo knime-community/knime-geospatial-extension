@@ -48,15 +48,33 @@
  */
 package org.knime.geospatial.io.geofilereader;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
+import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.conf.PlainParquetConfiguration;
+import org.apache.parquet.example.data.Group;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetReader;
+import org.apache.parquet.hadoop.api.ReadSupport;
+import org.apache.parquet.hadoop.example.GroupReadSupport;
+import org.apache.parquet.io.InputFile;
+import org.apache.parquet.io.LocalInputFile;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.Type;
 import org.geotools.api.data.DataStore;
 import org.geotools.api.data.FileDataStore;
 import org.geotools.api.data.SimpleFeatureSource;
@@ -66,22 +84,39 @@ import org.geotools.data.shapefile.ShapefileDataStoreFactory;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.feature.FeatureCollection;
 import org.geotools.geojson.feature.FeatureJSON;
+import org.geotools.kml.KMLConfiguration;
+import org.geotools.xsd.Parser;
 import org.knime.core.data.DataCell;
+import org.knime.core.data.DataColumnSpec;
+import org.knime.core.data.DataColumnSpecCreator;
 import org.knime.core.data.DataRow;
 import org.knime.core.data.DataTableSpec;
+import org.knime.core.data.DataType;
+import org.knime.core.data.RowKey;
+import org.knime.core.data.def.BooleanCell;
 import org.knime.core.data.def.DefaultRow;
+import org.knime.core.data.def.DoubleCell;
+import org.knime.core.data.def.IntCell;
+import org.knime.core.data.def.LongCell;
+import org.knime.core.data.def.StringCell;
 import org.knime.core.node.BufferedDataContainer;
 import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.CanceledExecutionException;
+import org.knime.core.node.ExecutionContext;
 import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.KNIMEException;
 import org.knime.core.node.message.Message;
 import org.knime.filehandling.core.connections.FSFiles.LocalFileHandle;
 import org.knime.filehandling.core.connections.FSPath;
 import org.knime.filehandling.core.defaultnodesettings.status.StatusMessage;
+import org.knime.geospatial.core.data.cell.GeoCell;
+import org.knime.geospatial.core.data.cell.GeoCellFactory;
+import org.knime.geospatial.core.data.reference.GeoReferenceSystem;
+import org.knime.geospatial.core.data.reference.GeoReferenceSystemFactory;
 import org.knime.geospatial.io.util.GeoFileNames;
 import org.knime.geospatial.io.util.GeoFileNames.DetectedFormat;
 import org.knime.geospatial.io.util.GeoTypeMapping;
+import org.knime.geospatial.io.util.HadoopFreeParquetCodecFactory;
 import org.knime.geospatial.io.util.LocalFileStaging;
 import org.knime.node.DefaultModel.ConfigureInput;
 import org.knime.node.DefaultModel.ConfigureOutput;
@@ -91,13 +126,18 @@ import org.knime.node.DefaultNode;
 import org.knime.node.DefaultNodeFactory;
 import org.knime.node.parameters.widget.file.FileSelectionConfig;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
  * Node factory for GeoFile Reader, 1:1 mirroring {@code GeoFileReaderNode} in the Python Geospatial Analytics
  * Extension's {@code knime_extension/src/nodes/io.py}.
  * <p>
- * KML/KMZ (partially supported by the Python node too, via GDAL's KML driver) and MapInfo TAB are not yet
- * implemented here — no GeoTools module for either was vendored into this bundle; both fail with a clear error
- * rather than silently producing wrong output. GeoParquet reading is likewise not yet implemented.
+ * KML/KMZ is read via GeoTools' KML binding rather than the Python node's GDAL driver, so the exact attribute
+ * columns produced can differ — the geometry and {@code name}/{@code description}-style fields carry over, but this
+ * is not byte-for-byte identical to GDAL's KML driver output. MapInfo TAB is not implemented — no GeoTools module for
+ * it exists at all (confirmed absent from the OSGeo Maven repository for this GeoTools version) — and fails with a
+ * clear error rather than silently producing wrong output.
  */
 public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
 
@@ -111,8 +151,9 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
                 """) //
         .fullDescription("""
                 This node reads a single geospatial file from the provided local file path or URL. Supported
-                formats: Shapefile (.shp), zipped Shapefile (.zip), single-layer GeoPackage (.gpkg), and GeoJSON
-                (.geojson).
+                formats: Shapefile (.shp), zipped Shapefile (.zip), single-layer GeoPackage (.gpkg), GeoJSON
+                (.geojson), GeoParquet (.parquet, optionally .br/.gz/.snappy-compressed), and KML/KMZ (.kml/.kmz,
+                single kml entry only). MapInfo TAB (.tab) is not supported.
                 """) //
         .sinceVersion(5, 13, 0) //
         .ports(p -> p //
@@ -152,10 +193,14 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
             final DetectedFormat format = GeoFileNames.detect(fileName);
 
             final BufferedDataTable table;
-            if (format == DetectedFormat.KML || format == DetectedFormat.KMZ) {
-                throw new KNIMEException("Reading " + format + " files is not yet implemented in this node.");
+            if (format == DetectedFormat.KML) {
+                try (InputStream kmlIn = Files.newInputStream(path)) {
+                    table = readKml(kmlIn, exec);
+                }
+            } else if (format == DetectedFormat.KMZ) {
+                table = readKmz(path, exec);
             } else if (format == DetectedFormat.PARQUET) {
-                throw new KNIMEException("Reading GeoParquet files is not yet implemented in this node.");
+                table = readGeoParquet(path, exec);
             } else if (fileName.toLowerCase().endsWith(".geojson")) {
                 table = readGeoJson(path, exec);
             } else if (fileName.toLowerCase().endsWith(".tab")) {
@@ -306,5 +351,224 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
         }
         final DataRow row = new DefaultRow(org.knime.core.data.RowKey.createRowKey(rowIdx), cells);
         container.addRowToTable(row);
+    }
+
+    private static BufferedDataTable readKml(final InputStream kmlContent, final ExecutionContext exec)
+        throws Exception {
+        final Object parsed = new Parser(new KMLConfiguration()).parse(kmlContent);
+        final List<SimpleFeature> placemarks = new ArrayList<>();
+        collectPlacemarks(parsed, placemarks);
+        if (placemarks.isEmpty()) {
+            throw new KNIMEException("The KML file contains no placemarks with a geometry.");
+        }
+        return placemarksToTable(placemarks, exec);
+    }
+
+    /**
+     * Recursively walks a GeoTools KML parse result — a tree of {@link SimpleFeature}s (Document/Folder containers
+     * nesting further containers or {@link Collection}s of them) down to the leaf Placemark features, each of which
+     * carries a non-null default geometry. Any feature with a non-null default geometry is treated as a leaf and
+     * collected without recursing further into its own attributes.
+     */
+    private static void collectPlacemarks(final Object node, final List<SimpleFeature> out) {
+        if (node instanceof SimpleFeature feature) {
+            if (feature.getFeatureType().getGeometryDescriptor() != null && feature.getDefaultGeometry() != null) {
+                out.add(feature);
+            } else {
+                for (final Object value : feature.getAttributes()) {
+                    collectPlacemarks(value, out);
+                }
+            }
+        } else if (node instanceof Collection<?> collection) {
+            for (final Object item : collection) {
+                collectPlacemarks(item, out);
+            }
+        }
+    }
+
+    private static BufferedDataTable placemarksToTable(final List<SimpleFeature> placemarks,
+        final ExecutionContext exec) throws KNIMEException, CanceledExecutionException {
+        // KML's binding uses one uniform FeatureType for every Placemark, so the first one's schema applies to all.
+        final SimpleFeatureType featureType = placemarks.get(0).getFeatureType();
+        final DataTableSpec spec = GeoTypeMapping.toTableSpec(featureType);
+        final int geoColIdx = geometryColumnIndex(featureType);
+        final BufferedDataContainer container = exec.createDataContainer(spec, false);
+        long rowIdx = 0;
+        for (final SimpleFeature feature : placemarks) {
+            exec.checkCanceled();
+            addFeatureRow(feature, spec, geoColIdx, container, rowIdx++);
+        }
+        container.close();
+        return container.getTable();
+    }
+
+    private static BufferedDataTable readKmz(final FSPath path, final ExecutionContext exec) throws Exception {
+        final LocalFileHandle local = LocalFileStaging.resolveExistingToLocalFile(path);
+        try {
+            byte[] kmlBytes = null;
+            try (ZipFile zip = new ZipFile(local.path())) {
+                for (final var entries = zip.entries(); entries.hasMoreElements();) {
+                    final ZipEntry entry = entries.nextElement();
+                    if (entry.getName().toLowerCase().endsWith(".kml")) {
+                        if (kmlBytes != null) {
+                            throw new KNIMEException("Node supports only kmz files with a single kml file");
+                        }
+                        try (InputStream in = zip.getInputStream(entry)) {
+                            kmlBytes = in.readAllBytes();
+                        }
+                    }
+                }
+            }
+            if (kmlBytes == null) {
+                throw new KNIMEException("The kmz file contains no kml file.");
+            }
+            try (InputStream in = new ByteArrayInputStream(kmlBytes)) {
+                return readKml(in, exec);
+            }
+        } finally {
+            local.close();
+        }
+    }
+
+    /** A {@link ParquetReader.Builder} for {@link Group} rows that never constructs a Hadoop {@code Configuration}. */
+    private static final class GroupReaderBuilder extends ParquetReader.Builder<Group> {
+        GroupReaderBuilder(final InputFile file) {
+            // ParquetReader.Builder's other constructors eagerly build a default Hadoop Configuration (which then
+            // tries to parse Hadoop's XML config resources) purely as a field initializer; passing a
+            // PlainParquetConfiguration upfront is the only constructor that skips that.
+            super(file, new PlainParquetConfiguration());
+        }
+
+        @Override
+        protected ReadSupport<Group> getReadSupport() {
+            return new GroupReadSupport();
+        }
+    }
+
+    private static BufferedDataTable readGeoParquet(final FSPath path, final ExecutionContext exec) throws Exception {
+        final LocalFileHandle local = LocalFileStaging.resolveExistingToLocalFile(path);
+        try {
+            final InputFile inputFile = new LocalInputFile(java.nio.file.Path.of(local.path()));
+            final ParquetReadOptions readOptions = ParquetReadOptions.builder(new PlainParquetConfiguration())
+                .withCodecFactory(HadoopFreeParquetCodecFactory.INSTANCE).build();
+
+            final MessageType schema;
+            final String geoMetaJson;
+            try (ParquetFileReader fileReader = ParquetFileReader.open(inputFile, readOptions)) {
+                schema = fileReader.getFileMetaData().getSchema();
+                geoMetaJson = fileReader.getFileMetaData().getKeyValueMetaData().get("geo");
+            }
+
+            final String geometryColumn = extractPrimaryGeometryColumn(geoMetaJson, schema);
+            final GeoReferenceSystem refSystem = extractCrs(geoMetaJson, geometryColumn);
+
+            final List<Type> fields = schema.getFields();
+            final DataColumnSpec[] colSpecs = new DataColumnSpec[fields.size()];
+            for (int i = 0; i < fields.size(); i++) {
+                final Type field = fields.get(i);
+                final DataType type = field.getName().equals(geometryColumn) ? GeoCell.TYPE
+                    : parquetTypeToDataType(field.asPrimitiveType());
+                colSpecs[i] = new DataColumnSpecCreator(field.getName(), type).createSpec();
+            }
+            final DataTableSpec spec = new DataTableSpec(colSpecs);
+
+            final BufferedDataContainer container = exec.createDataContainer(spec, false);
+            long rowIdx = 0;
+            try (ParquetReader<Group> reader =
+                new GroupReaderBuilder(inputFile).withCodecFactory(HadoopFreeParquetCodecFactory.INSTANCE).build()) {
+                Group group;
+                while ((group = reader.read()) != null) {
+                    exec.checkCanceled();
+                    final DataCell[] cells = new DataCell[fields.size()];
+                    for (int i = 0; i < fields.size(); i++) {
+                        final Type field = fields.get(i);
+                        if (group.getFieldRepetitionCount(i) == 0) {
+                            cells[i] = DataType.getMissingCell();
+                        } else if (field.getName().equals(geometryColumn)) {
+                            cells[i] = GeoCellFactory.create(group.getBinary(i, 0).getBytes(), refSystem);
+                        } else {
+                            cells[i] = groupValueToDataCell(group, i, field.asPrimitiveType());
+                        }
+                    }
+                    container.addRowToTable(new DefaultRow(RowKey.createRowKey(rowIdx++), cells));
+                }
+            }
+            container.close();
+            return container.getTable();
+        } finally {
+            local.close();
+        }
+    }
+
+    /**
+     * Determines the geometry column per the GeoParquet spec's {@code "geo"} file metadata key
+     * ({@code primary_column}), falling back to a plain column named {@code geometry} if the file carries no such
+     * metadata at all.
+     */
+    private static String extractPrimaryGeometryColumn(final String geoMetaJson, final MessageType schema)
+        throws KNIMEException {
+        if (geoMetaJson != null) {
+            try {
+                final JsonNode primary = new ObjectMapper().readTree(geoMetaJson).get("primary_column");
+                if (primary != null && !primary.isNull()) {
+                    return primary.asText();
+                }
+            } catch (final IOException e) {
+                throw KNIMEException
+                    .of(Message.fromSummary("Could not parse the parquet file's 'geo' metadata: " + e.getMessage()), e);
+            }
+        }
+        return schema.getFields().stream().map(Type::getName).filter(n -> n.equalsIgnoreCase("geometry")).findFirst()
+            .orElseThrow(() -> new KNIMEException("The parquet file has no 'geo' metadata and no 'geometry' column; "
+                + "cannot determine which column holds the geometry."));
+    }
+
+    /**
+     * Resolves the geometry column's CRS per the GeoParquet spec: a {@code null}/absent {@code "crs"} entry means
+     * the default CRS (OGC:CRS84, i.e. WGS84). A full PROJJSON CRS definition is not parsed here — only the common
+     * case of a PROJJSON object carrying a top-level {@code "id": {"authority": ..., "code": ...}} identifier is
+     * recognized; anything else falls back to the spec default rather than guessing.
+     */
+    private static GeoReferenceSystem extractCrs(final String geoMetaJson, final String geometryColumn) {
+        if (geoMetaJson != null) {
+            try {
+                final JsonNode root = new ObjectMapper().readTree(geoMetaJson);
+                final JsonNode columns = root.get("columns");
+                final JsonNode columnMeta = columns == null ? null : columns.get(geometryColumn);
+                final JsonNode crs = columnMeta == null ? null : columnMeta.get("crs");
+                final JsonNode id = crs == null ? null : crs.get("id");
+                if (id != null && id.has("authority") && id.has("code")) {
+                    return GeoReferenceSystemFactory.create(id.get("authority").asText() + ":" + id.get("code").asText());
+                }
+            } catch (final IOException e) { // NOSONAR - falling back to the spec default is correct on any parse failure
+                // ignore, fall back below
+            }
+        }
+        return GeoReferenceSystem.DEFAULT;
+    }
+
+    private static DataType parquetTypeToDataType(final PrimitiveType type) throws KNIMEException {
+        return switch (type.getPrimitiveTypeName()) {
+            case INT32 -> IntCell.TYPE;
+            case INT64 -> LongCell.TYPE;
+            case DOUBLE, FLOAT -> DoubleCell.TYPE;
+            case BOOLEAN -> BooleanCell.TYPE;
+            case BINARY -> StringCell.TYPE;
+            default -> throw new KNIMEException("Unsupported parquet column type '" + type.getPrimitiveTypeName()
+                + "' for column '" + type.getName() + "'.");
+        };
+    }
+
+    private static DataCell groupValueToDataCell(final Group group, final int fieldIndex, final PrimitiveType type) {
+        return switch (type.getPrimitiveTypeName()) {
+            case INT32 -> new IntCell(group.getInteger(fieldIndex, 0));
+            case INT64 -> new LongCell(group.getLong(fieldIndex, 0));
+            case DOUBLE -> new DoubleCell(group.getDouble(fieldIndex, 0));
+            case FLOAT -> new DoubleCell(group.getFloat(fieldIndex, 0));
+            case BOOLEAN -> BooleanCell.get(group.getBoolean(fieldIndex, 0));
+            case BINARY -> new StringCell(group.getString(fieldIndex, 0));
+            default ->
+                throw new IllegalStateException("Unsupported parquet column type: " + type.getPrimitiveTypeName());
+        };
     }
 }

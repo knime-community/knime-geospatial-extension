@@ -34,7 +34,9 @@
 	<classpathentry exported="true" kind="lib" path="lib/gt-xsd-filter-31.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/gt-xsd-gml2-31.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/gt-xsd-gml3-31.2.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/gt-xsd-kml-31.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/gt-xsd-ows-31.2.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/hadoop-client-api-3.3.6.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/hsqldb-2.7.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/imageio-ext-geocore-1.4.12.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/imageio-ext-streams-1.4.12.jar"/>

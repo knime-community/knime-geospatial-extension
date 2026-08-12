@@ -60,10 +60,12 @@ import org.knime.filehandling.core.connections.FSFiles.LocalFileHandle;
 import org.knime.filehandling.core.connections.FSPath;
 
 /**
- * Shapefile (multi-file: .shp/.shx/.dbf/.prj/.cpg) and GeoPackage (a single SQLite file) both need a real local
- * {@code java.io.File}/{@code java.nio.file.Path} for the underlying GeoTools {@code DataStore}/JDBC driver APIs —
- * the same constraint already solved for KNIME's H2/SQLite DB connectors
- * ({@code FileDBConnectorHelper.resolveToLocalFile}) and the Tableau Writer node
+ * Several formats need a real local {@code java.io.File}/{@code java.nio.file.Path} rather than an arbitrary
+ * {@code InputStream}/{@code OutputStream}, each for its own reason: Shapefile (multi-file: .shp/.shx/.dbf/.prj/.cpg)
+ * and GeoPackage (a single SQLite file) for the underlying GeoTools {@code DataStore}/JDBC driver APIs; KMZ for
+ * {@code java.util.zip.ZipFile}, which has no {@code InputStream}-based constructor; GeoParquet for Parquet's
+ * Hadoop-free {@code LocalInputFile}/{@code LocalOutputFile}. This is the same constraint already solved for KNIME's
+ * H2/SQLite DB connectors ({@code FileDBConnectorHelper.resolveToLocalFile}) and the Tableau Writer node
  * ({@code TableauHyperWriterNodeModel3}'s local-staging/upload logic). This class provides that same
  * resolve-to-local / stage-then-upload shape, reused across the GeoFile and GeoPackage nodes.
  * <p>
