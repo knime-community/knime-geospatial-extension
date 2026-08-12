@@ -121,8 +121,8 @@ public final class GeoFileWriterNodeFactory extends DefaultNodeFactory {
                 case FAIL -> new java.nio.file.OpenOption[]{StandardOpenOption.CREATE_NEW};
             };
 
-            final SimpleFeatureType featureType = buildFeatureType(spec, geoColIdx, table.size() == 0 ? null
-                : GeoTypeMapping.toCoordinateReferenceSystem((GeoValue)table.iterator().next().getCell(geoColIdx)));
+            final SimpleFeatureType featureType = buildFeatureType(spec, geoColIdx,
+                table.size() == 0 ? null : GeoTypeMapping.findCrs(table, geoColIdx));
             final ListFeatureCollection features = buildFeatureCollection(featureType, table, geoColIdx, in);
 
             switch (parameters.m_format) {

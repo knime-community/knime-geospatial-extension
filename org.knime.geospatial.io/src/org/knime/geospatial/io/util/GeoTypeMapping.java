@@ -24,6 +24,7 @@ import org.geotools.referencing.CRS;
 import org.knime.core.data.DataCell;
 import org.knime.core.data.DataColumnSpec;
 import org.knime.core.data.DataColumnSpecCreator;
+import org.knime.core.data.DataRow;
 import org.knime.core.data.DataTableSpec;
 import org.knime.core.data.DataType;
 import org.knime.core.data.def.BooleanCell;
@@ -33,6 +34,7 @@ import org.knime.core.data.def.LongCell;
 import org.knime.core.data.def.StringCell;
 import org.knime.core.data.time.localdate.LocalDateCellFactory;
 import org.knime.core.data.time.localdatetime.LocalDateTimeCellFactory;
+import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.KNIMEException;
 import org.knime.core.node.message.Message;
 import org.knime.geospatial.core.data.GeoValue;
@@ -157,6 +159,37 @@ public final class GeoTypeMapping {
         } catch (final ParseException e) {
             throw KNIMEException.of(Message.fromSummary("Could not parse geometry: " + e.getMessage()), e);
         }
+    }
+
+    /**
+     * Determines the CRS to use for a geometry column being written out: the common CRS shared by all non-missing
+     * {@link GeoValue}s, or WGS84 if every value in the column is missing. Mirrors the Python extension's
+     * {@code ToGeoPandasColumnConverter}, which likewise skips missing values and raises rather than silently
+     * picking a CRS when a column mixes more than one.
+     *
+     * @throws KNIMEException if the column contains values with more than one distinct CRS
+     */
+    public static CoordinateReferenceSystem findCrs(final BufferedDataTable table, final int geoColIdx)
+        throws KNIMEException {
+        String firstCrsString = null;
+        CoordinateReferenceSystem crs = null;
+        for (final DataRow row : table) {
+            final DataCell cell = row.getCell(geoColIdx);
+            if (cell.isMissing()) {
+                continue;
+            }
+            final GeoValue value = (GeoValue)cell;
+            final String crsString = value.getReferenceSystem() == null ? null : value.getReferenceSystem().getCRS();
+            if (crs == null) {
+                firstCrsString = crsString;
+                crs = toCoordinateReferenceSystem(value);
+            } else if (!java.util.Objects.equals(firstCrsString, crsString)) {
+                throw KNIMEException.of(Message.fromSummary("Can only work with exactly one coordinate reference "
+                    + "system in one column, but got at least two: '" + firstCrsString + "' and '" + crsString
+                    + "'."));
+            }
+        }
+        return crs == null ? org.geotools.referencing.crs.DefaultGeographicCRS.WGS84 : crs;
     }
 
     /**

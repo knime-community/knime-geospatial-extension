@@ -153,7 +153,7 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
         try (var geoPackage = new GeoPackage(new File(localFile.toString()))) {
             final DataTableSpec spec = table.getDataTableSpec();
             final var crs = table.size() == 0 ? org.geotools.referencing.crs.DefaultGeographicCRS.WGS84
-                : GeoTypeMapping.toCoordinateReferenceSystem((GeoValue)table.iterator().next().getCell(geoColIdx));
+                : GeoTypeMapping.findCrs(table, geoColIdx);
 
             final var builder = new SimpleFeatureTypeBuilder();
             builder.setName(layerName);
