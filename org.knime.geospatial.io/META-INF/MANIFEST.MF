@@ -4,7 +4,7 @@ Created-By: 21.0.11+10-1-24.04.2-Ubuntu (Ubuntu)
 Bundle-ManifestVersion: 2
 Bundle-Name: KNIME Geospatial File I/O nodes
 Bundle-SymbolicName: org.knime.geospatial.io;singleton:=true
-Bundle-Version: 5.13.0.qualifier
+Bundle-Version: 2.1.0.qualifier
 Bundle-Vendor: KNIME AG, Zurich, Switzerland
 Export-Package: org.knime.geospatial.io.util,org.knime.geospatial.io.g
  eofilereader,org.knime.geospatial.io.geofilewriter,org.knime.geospati

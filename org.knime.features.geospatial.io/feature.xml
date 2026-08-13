@@ -2,7 +2,7 @@
 <feature
       id="org.knime.features.geospatial.io"
       label="KNIME Geospatial File I/O (Java)"
-      version="5.13.0.qualifier"
+      version="2.1.0.qualifier"
       provider-name="KNIME AG, Zurich, Switzerland"
       plugin="org.knime.geospatial.io">
 

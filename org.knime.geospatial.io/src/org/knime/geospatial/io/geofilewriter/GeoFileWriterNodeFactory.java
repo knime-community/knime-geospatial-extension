@@ -96,7 +96,7 @@ public final class GeoFileWriterNodeFactory extends DefaultNodeFactory {
     private static final FileSelectionConfig FILE_SELECTION_CONFIG = FileSelectionConfig.builder().build();
 
     private static final DefaultNode NODE = DefaultNode.create() //
-        .name("GeoFile Writer") //
+        .name("GeoFile Writer (Java)") //
         .icon("./GeoFileWriter.png") //
         .shortDescription("""
                 Write single layer GeoFile.

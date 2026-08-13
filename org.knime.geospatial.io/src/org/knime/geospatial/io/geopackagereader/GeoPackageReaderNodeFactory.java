@@ -94,7 +94,7 @@ public final class GeoPackageReaderNodeFactory extends DefaultNodeFactory {
     private static final FileSelectionConfig FILE_SELECTION_CONFIG = FileSelectionConfig.builder().build();
 
     private static final DefaultNode NODE = DefaultNode.create() //
-        .name("GeoPackage Reader") //
+        .name("GeoPackage Reader (Java)") //
         .icon("./GeoPackageReader.png") //
         .shortDescription("""
                 Read GeoPackage layer

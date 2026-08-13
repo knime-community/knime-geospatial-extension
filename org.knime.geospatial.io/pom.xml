@@ -3,8 +3,8 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.knime</groupId>
-        <artifactId>knime-geospatial-io</artifactId>
+        <groupId>sdl.harvard</groupId>
+        <artifactId>geospatial</artifactId>
         <version>${revision}${changelist}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
@@ -13,7 +13,7 @@
     <packaging>eclipse-plugin</packaging>
 
     <properties>
-        <revision>5.13.0</revision>
+        <revision>2.1.0</revision>
     </properties>
 
     <build>

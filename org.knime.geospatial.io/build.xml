@@ -53,6 +53,28 @@
         </manifest>
     </target>
 
-    <target name="main" depends="copy-deps,update-bundle-classpath"/>
+    <target name="update-classpath-file" depends="copy-deps"
+        description="regenerate .classpath's kind=lib entries from whatever jars actually ended up in lib/ -
+            no IvyDE (or any other Eclipse Ivy plugin) required, the IDE just sees plain jar classpath entries.">
+        <path id="runtime.libs.cp">
+            <fileset dir="lib" includes="**/*.jar"/>
+        </path>
+        <pathconvert property="classpath.lib.entries" refid="runtime.libs.cp" pathsep="${line.separator}">
+            <mapper type="regexp" from="^.*[/\\]([^/\\]+\.jar)$$"
+                to="	&lt;classpathentry exported=&quot;true&quot; kind=&quot;lib&quot; path=&quot;lib/\1&quot;/&gt;"/>
+        </pathconvert>
+        <echo file=".classpath"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-17"/>
+	<classpathentry exported="true" kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
+	<classpathentry kind="src" path="src"/>
+]]></echo>
+        <echo file=".classpath" append="true">${classpath.lib.entries}${line.separator}</echo>
+        <echo file=".classpath" append="true"><![CDATA[	<classpathentry kind="output" path="bin"/>
+</classpath>
+]]></echo>
+    </target>
+
+    <target name="main" depends="copy-deps,update-bundle-classpath,update-classpath-file"/>
 
 </project>

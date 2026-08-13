@@ -13,6 +13,12 @@ tests/*.ipynb
 *.egg-info
 local-update-site
 
+# `pixi run build dest=<path>` (matching the older doc syntax) doesn't strip the "dest=" prefix with this pixi
+# version - it lands the literal string as the output path, creating a bogus nested "dest=/abs/path/..." tree
+# inside knime_extension/ instead of writing to <path>. Ignored as a safety net; the actual fix is calling
+# `pixi run build <path>` (positional, no "dest=" prefix).
+knime_extension/dest=*
+
 # Java/Maven-Tycho build output
 target/
 .flattened-pom.xml

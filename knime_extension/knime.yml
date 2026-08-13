@@ -14,3 +14,59 @@ feature_dependencies:
 java_bundles:
   - org.knime.geospatial.io
 
+# org.knime.geospatial.io targets KNIME AP 5.13, which isn't on the public "latest"/"nightly" update sites yet -
+# use the same master-branch p2 composites the Java bundle's own reactor (../pom.xml) resolves against.
+override_update_sites:
+  - id: p2-knime-core
+    url: https://jenkins.devops.knime.com/p2/knime/knime-core/master
+  - id: p2-knime-core-ui
+    url: https://jenkins.devops.knime.com/p2/knime/knime-core-ui/master
+  - id: p2-knime-tp
+    url: https://jenkins.devops.knime.com/p2/knime/knime-tp/master
+  - id: p2-knime-filehandling-core
+    url: https://jenkins.devops.knime.com/p2/knime/knime-filehandling-core/master
+  - id: p2-knime-base
+    url: https://jenkins.devops.knime.com/p2/knime/knime-base/master
+  - id: p2-knime-workbench
+    url: https://jenkins.devops.knime.com/p2/knime/knime-workbench/master
+  - id: p2-knime-shared
+    url: https://jenkins.devops.knime.com/p2/knime/knime-shared/master
+  - id: p2-knime-geospatial
+    url: https://jenkins.devops.knime.com/p2/knime/knime-geospatial/master
+  - id: p2-knime-python
+    url: https://jenkins.devops.knime.com/p2/knime/knime-python/master
+  - id: p2-knime-conda
+    url: https://jenkins.devops.knime.com/p2/knime/knime-conda/master
+  - id: p2-knime-python-types
+    url: https://jenkins.devops.knime.com/p2/knime/knime-python-types/master
+  - id: p2-knime-core-columnar
+    url: https://jenkins.devops.knime.com/p2/knime/knime-core-columnar/master
+  - id: p2-knime-product
+    url: https://jenkins.devops.knime.com/p2/knime/knime-product/master
+  - id: p2-knime-js-core
+    url: https://jenkins.devops.knime.com/p2/knime/knime-js-core/master
+  - id: p2-knime-credentials-base
+    url: https://jenkins.devops.knime.com/p2/knime/knime-credentials-base/master
+  - id: p2-knime-gateway
+    url: https://jenkins.devops.knime.com/p2/knime/knime-gateway/master
+  - id: p2-knime-server-client
+    url: https://jenkins.devops.knime.com/p2/knime/knime-server-client/master
+  - id: p2-knime-rest
+    url: https://jenkins.devops.knime.com/p2/knime/knime-rest/master
+  - id: p2-knime-executor
+    url: https://jenkins.devops.knime.com/p2/knime/knime-executor/master
+  - id: p2-knime-productivity-oss
+    url: https://jenkins.devops.knime.com/p2/knime/knime-productivity-oss/master
+  - id: p2-knime-filehandling
+    url: https://jenkins.devops.knime.com/p2/knime/knime-filehandling/master
+  - id: p2-knime-json
+    url: https://jenkins.devops.knime.com/p2/knime/knime-json/master
+  - id: p2-knime-jep
+    url: https://jenkins.devops.knime.com/p2/knime/knime-jep/master
+  - id: p2-knime-expressions
+    url: https://jenkins.devops.knime.com/p2/knime/knime-expressions/master
+  - id: p2-knime-javasnippet
+    url: https://jenkins.devops.knime.com/p2/knime/knime-javasnippet/master
+  - id: p2-knime-reporting
+    url: https://jenkins.devops.knime.com/p2/knime/knime-reporting/master
+

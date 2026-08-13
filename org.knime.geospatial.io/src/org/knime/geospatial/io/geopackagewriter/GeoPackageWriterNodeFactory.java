@@ -100,7 +100,7 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
     private static final FileSelectionConfig FILE_SELECTION_CONFIG = FileSelectionConfig.builder().build();
 
     private static final DefaultNode NODE = DefaultNode.create() //
-        .name("GeoPackage Writer") //
+        .name("GeoPackage Writer (Java)") //
         .icon("./GeoPackageWriter.png") //
         .shortDescription("""
                 Write GeoPackage layer.

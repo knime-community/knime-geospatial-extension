@@ -144,7 +144,7 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
     private static final FileSelectionConfig FILE_SELECTION_CONFIG = FileSelectionConfig.builder().build();
 
     private static final DefaultNode NODE = DefaultNode.create() //
-        .name("GeoFile Reader") //
+        .name("GeoFile Reader (Java)") //
         .icon("./GeoFileReader.png") //
         .shortDescription("""
                 Read single layer GeoFile.
