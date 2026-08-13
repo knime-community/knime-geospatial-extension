@@ -16,3 +16,15 @@ local-update-site
 # Java/Maven-Tycho build output
 target/
 .flattened-pom.xml
+
+# Tycho's pomless/manifest-first mode auto-derives a synthetic pom into one of these per module without its own
+# pom.xml, rewriting it on every build - every module here now has a real committed pom.xml instead, so these are
+# stale generated cache, not source.
+.polyglot.*
+
+# .mvn/extensions.xml activated Tycho's pomless mode above; no longer used now that every module has a real pom.xml.
+.mvn/
+
+# Third-party jars for org.knime.geospatial.io are resolved via Ivy (ivy.xml) at build time, not vendored in git -
+# see build.xml's "main" target, wired into the Maven build via the maven-antrun-plugin execution in pom.xml.
+org.knime.geospatial.io/lib/*.jar

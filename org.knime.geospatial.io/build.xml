@@ -1,0 +1,58 @@
+<project xmlns:ivy="antlib:org.apache.ivy.ant" name="geospatial-io-deps" default="main">
+
+    <target name="lib-resolve" description="resolve the jars declared in ivy.xml">
+        <ivy:settings file="ivysettings.xml"/>
+        <ivy:resolve file="ivy.xml" conf="default"/>
+    </target>
+
+    <target name="clean-plugin-lib" description="remove previously vendored jars so stale/removed deps don't linger">
+        <delete includeemptydirs="true">
+            <fileset dir="lib" includes="**/*.jar"/>
+        </delete>
+    </target>
+
+    <target name="copy-deps" depends="lib-resolve,clean-plugin-lib"
+        description="copy the resolved runtime jars into lib/">
+        <!-- type must cover both plain jars and OSGi-bundle-packaged artifacts (<packaging>bundle</packaging> in
+             the POM, e.g. jts-core/indriya/snappy-java/json-simple) - both are physically .jar files, Ivy just
+             tags them differently based on Maven packaging. -->
+        <ivy:cachefileset setid="runtime.jars" conf="default" type="jar,bundle"/>
+        <restrict id="runtime.filtered">
+            <fileset refid="runtime.jars"/>
+            <not>
+                <or>
+                    <name name="**/*-sources.jar"/>
+                    <name name="**/*-javadoc.jar"/>
+                    <name name="**/*-tests.jar"/>
+                </or>
+            </not>
+        </restrict>
+        <mkdir dir="lib"/>
+        <copy todir="lib" overwrite="false" flatten="true">
+            <resources refid="runtime.filtered"/>
+        </copy>
+    </target>
+
+    <target name="update-bundle-classpath" depends="copy-deps"
+        description="regenerate MANIFEST.MF's Bundle-ClassPath from whatever jars actually ended up in lib/">
+        <path id="runtime.libs">
+            <fileset dir="lib" includes="**/*.jar"/>
+        </path>
+        <pathconvert property="bundle.classpath.libs" refid="runtime.libs" pathsep=",">
+            <mapper>
+                <chainedmapper>
+                    <flattenmapper/>
+                    <globmapper from="*" to="lib/*"/>
+                </chainedmapper>
+            </mapper>
+        </pathconvert>
+        <property name="bundle.classpath" value=".,${bundle.classpath.libs}"/>
+        <echo message="Bundle-ClassPath will be: ${bundle.classpath}"/>
+        <manifest file="META-INF/MANIFEST.MF" mode="update">
+            <attribute name="Bundle-ClassPath" value="${bundle.classpath}"/>
+        </manifest>
+    </target>
+
+    <target name="main" depends="copy-deps,update-bundle-classpath"/>
+
+</project>
