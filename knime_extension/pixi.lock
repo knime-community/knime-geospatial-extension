@@ -132,7 +132,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/typing_extensions-4.14.1-pyhe01879c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026c-h151e31d_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/urllib3-2.5.0-pyhd8ed1ab_0.conda
-      - conda: https://conda.anaconda.org/knime/label/nightly/noarch/knime-extension-bundling-5.12.0-202606241529.conda
+      - conda: https://conda.anaconda.org/knime/label/nightly/noarch/knime-extension-bundling-6.0.0-202607130940.conda
       osx-64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/boolean.py-5.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/ca-certificates-2026.7.22-hbd8a1cb_0.conda
@@ -184,7 +184,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-64/yaml-0.2.5-h4132b18_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/zstandard-0.25.0-py311h62e9434_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/zstd-1.5.7-hbc1a06c_7.conda
-      - conda: https://conda.anaconda.org/knime/label/nightly/noarch/knime-extension-bundling-5.12.0-202606241529.conda
+      - conda: https://conda.anaconda.org/knime/label/nightly/noarch/knime-extension-bundling-6.0.0-202607130940.conda
       osx-arm64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/boolean.py-5.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/ca-certificates-2026.7.22-hbd8a1cb_0.conda
@@ -237,7 +237,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/yaml-0.2.5-h925e9cb_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/zstandard-0.25.0-py311h5bb9006_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/zstd-1.5.7-hf451053_7.conda
-      - conda: https://conda.anaconda.org/knime/label/nightly/noarch/knime-extension-bundling-5.12.0-202606241529.conda
+      - conda: https://conda.anaconda.org/knime/label/nightly/noarch/knime-extension-bundling-6.0.0-202607130940.conda
       win-64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/boolean.py-5.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/ca-certificates-2026.7.22-h4c7d964_0.conda
@@ -292,7 +292,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/yaml-0.2.5-h6a83c73_3.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/zstandard-0.25.0-py311hf893f09_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/zstd-1.5.7-h534d264_7.conda
-      - conda: https://conda.anaconda.org/knime/label/nightly/noarch/knime-extension-bundling-5.12.0-202606241529.conda
+      - conda: https://conda.anaconda.org/knime/label/nightly/noarch/knime-extension-bundling-6.0.0-202607130940.conda
   default:
     channels:
     - url: https://conda.anaconda.org/knime/label/nightly/
@@ -20552,11 +20552,11 @@ packages:
   license: GPLv3
   size: 98671
   timestamp: 1759244652687
-- conda: https://conda.anaconda.org/knime/label/nightly/noarch/knime-extension-bundling-5.12.0-202606241529.conda
+- conda: https://conda.anaconda.org/knime/label/nightly/noarch/knime-extension-bundling-6.0.0-202607130940.conda
   build_number: 0
   noarch: python
-  sha256: 230d6c45bb8313aba5804e79f0e96b1d1494d82a980ac0308392981f3b117aaf
-  md5: cf95769a048c3e25d3bd8e7fbf39c8e2
+  sha256: 9d81e8f9a90b48aaa1b936c7c27e52efb10432b90c2fe116f82cd7e5426231c0
+  md5: b46392bac093132d2feb82483694e111
   depends:
   - cyclonedx-python-lib >=8.0
   - gitpython >=3.1.44,<4
@@ -20573,8 +20573,8 @@ packages:
   - zstandard >=0.22.0
   license: GPL-3.0
   license_family: GPL3
-  size: 452607
-  timestamp: 1782315207715
+  size: 415278
+  timestamp: 1783935932632
 - conda: https://conda.anaconda.org/knime/label/nightly/osx-64/knime-python-base-5.7.0-py311_202508281500.conda
   build_number: 0
   sha256: c58837e731b045a57c242aad2743f896ee4ea38bdaf18fda4198b3786acbc724

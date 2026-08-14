@@ -45,7 +45,7 @@ sodapy = "==2.2.0"
 
 [feature.build.dependencies]
 python = "3.11.*"
-knime-extension-bundling = "5.12.*"
+knime-extension-bundling = "6.0.*"
 
 [feature.build.tasks]
 build = { args = [{ "arg" = "dest", "default" = "./local-update-site" }], cmd = "build-python-extension . {{ dest }}"}

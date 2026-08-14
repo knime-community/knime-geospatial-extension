@@ -146,11 +146,11 @@ final class GeoPackageWriterNodeParameters implements NodeParameters {
         description = "The output layer name in the GeoPackage data.")
     String m_layer = "new";
 
-    @Widget(title = "Encoding", description = "Select the encoding for saving the data file.")
-    @Advanced
-    GeoFileEncoding m_encoding = GeoFileEncoding.AUTO;
-
     @Widget(title = "If exists", description = "Specifies the action to take if the output file already exists.")
     @ValueSwitchWidget
     ExistingFile m_overwritePolicy = ExistingFile.FAIL;
+
+    @Widget(title = "Encoding", description = "Select the encoding for saving the data file.")
+    @Advanced
+    GeoFileEncoding m_encoding = GeoFileEncoding.AUTO;
 }

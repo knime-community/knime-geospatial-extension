@@ -179,6 +179,10 @@ final class GeoFileWriterNodeParameters implements NodeParameters {
     FileSelection m_outputFile = new FileSelection(
         new FSLocation(FSCategory.RELATIVE, RelativeTo.WORKFLOW_DATA.getSettingsValue(), "output.shp"));
 
+    @Widget(title = "If exists", description = "Specifies the action to take if the output file already exists.")
+    @ValueSwitchWidget
+    ExistingFile m_overwritePolicy = ExistingFile.FAIL;
+
     @Widget(title = "Output file format", description = "The file format to use.")
     @ValueSwitchWidget
     @ValueReference(FormatRef.class)
@@ -188,10 +192,6 @@ final class GeoFileWriterNodeParameters implements NodeParameters {
     @ValueSwitchWidget
     @Effect(predicate = IsGeoParquet.class, type = EffectType.SHOW)
     ParquetCompression m_parquetCompression = ParquetCompression.NONE;
-
-    @Widget(title = "If exists", description = "Specifies the action to take if the output file already exists.")
-    @ValueSwitchWidget
-    ExistingFile m_overwritePolicy = ExistingFile.FAIL;
 
     @Widget(title = "Encoding", description = "Select the encoding for saving the data file.")
     @Advanced
