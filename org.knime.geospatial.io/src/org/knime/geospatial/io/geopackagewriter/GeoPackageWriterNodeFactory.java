@@ -189,9 +189,12 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
         final String layerName, final ExecutionContext exec) throws IOException, CanceledExecutionException,
     	IndexOutOfBoundsException, KNIMEException {
         try (var geoPackage = new GeoPackage(new File(localFile.toString()))) {
+            // Required even for an existing file - a brand-new local staging file has no gpkg_contents/
+            // gpkg_geometry_columns schema yet, so geoPackage.features() below throws "no such table:
+            // gpkg_contents" without this; safe/idempotent to call on an already-initialized file too.
+            geoPackage.init();
             final DataTableSpec spec = table.getDataTableSpec();
-            final var crs = table.size() == 0 ? org.geotools.referencing.crs.DefaultGeographicCRS.WGS84
-                : GeoTypeMapping.findCrs(table, geoColIdx);
+            final var crs = GeoTypeMapping.findCrs(table, geoColIdx);
 
             final var builder = new SimpleFeatureTypeBuilder();
             builder.setName(layerName);
@@ -200,7 +203,7 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
                 if (i == geoColIdx) {
                     builder.add(name, Geometry.class, crs);
                 } else {
-                    builder.add(name, String.class);
+                    builder.add(name, GeoTypeMapping.javaTypeForGeoPackage(spec.getColumnSpec(i).getType()));
                 }
             }
             final SimpleFeatureType featureType = builder.buildFeatureType();
@@ -217,6 +220,9 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
             if (!layerAlreadyExists) {
                 entry = new FeatureEntry();
                 entry.setTableName(layerName);
+                // GeoPackage.create() requires bounds to be set up front - it throws IllegalArgumentException
+                // ("Entry must have bounds") otherwise, on every very first write to a new layer.
+                entry.setBounds(computeBounds(table, geoColIdx, crs));
                 geoPackage.create(entry, featureType);
             }
 
@@ -231,13 +237,16 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
                     if (rowCount > 0) {
                         exec.setProgress((double)rowIdx / rowCount, "Writing row " + rowIdx + "/" + rowCount);
                     }
+                    // GeoTools' insert-mode SimpleFeatureWriter requires hasNext() polled before each next() to
+                    // advance/allocate a feature slot; skipping it throws IllegalStateException on the first row.
+                    writer.hasNext();
                     final var feature = writer.next();
                     for (int i = 0; i < row.getNumCells(); i++) {
                         final var cell = row.getCell(i);
                         if (i == geoColIdx) {
                             feature.setAttribute(i, cell.isMissing() ? null : GeoTypeMapping.toJtsGeometry((GeoValue)cell));
                         } else {
-                            feature.setAttribute(i, cell.isMissing() ? null : cell.toString());
+                            feature.setAttribute(i, GeoTypeMapping.toJavaValueForGeoPackage(cell));
                         }
                     }
                     writer.write();
@@ -245,5 +254,24 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
                 }
             }
         }
+    }
+
+    /**
+     * Computes the layer's spatial extent up front by unioning every non-missing geometry's envelope - needed
+     * because {@link GeoPackage#create(FeatureEntry, SimpleFeatureType)} requires bounds before any feature is
+     * written, so a full {@link ListFeatureCollection} can't be relied on to supply them afterwards. Falls back to
+     * an empty (but CRS-tagged) envelope if the column has no non-missing values to derive bounds from.
+     */
+    private static org.geotools.geometry.jts.ReferencedEnvelope computeBounds(final BufferedDataTable table,
+        final int geoColIdx, final org.geotools.api.referencing.crs.CoordinateReferenceSystem crs)
+        throws KNIMEException {
+        final var envelope = new org.geotools.geometry.jts.ReferencedEnvelope(crs);
+        for (final DataRow row : table) {
+            final var cell = row.getCell(geoColIdx);
+            if (!cell.isMissing()) {
+                envelope.expandToInclude(GeoTypeMapping.toJtsGeometry((GeoValue)cell).getEnvelopeInternal());
+            }
+        }
+        return envelope;
     }
 }

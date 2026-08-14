@@ -153,14 +153,20 @@ public final class GeoFileWriterNodeFactory extends DefaultNodeFactory {
             final FSPath destPath = (FSPath)rawDestPath
                 .resolveSibling(GeoFileNames.ensureExtension(rawDestPath.getFileName().toString(), extension));
 
+            if (parameters.m_overwritePolicy == GeoFileWriterNodeParameters.ExistingFile.FAIL
+                && java.nio.file.Files.exists(destPath)) {
+                throw new KNIMEException(
+                    "Output file \"" + destPath + "\" already exists - must not overwrite as per user setting");
+            }
+
             final var openOptions = switch (parameters.m_overwritePolicy) {
                 case OVERWRITE -> new java.nio.file.OpenOption[]{StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING};
                 case FAIL -> new java.nio.file.OpenOption[]{StandardOpenOption.CREATE_NEW};
             };
 
-            final SimpleFeatureType featureType = buildFeatureType(spec, geoColIdx,
-                table.size() == 0 ? null : GeoTypeMapping.findCrs(table, geoColIdx));
+            final SimpleFeatureType featureType =
+                buildFeatureType(spec, geoColIdx, GeoTypeMapping.findCrs(table, geoColIdx));
             final ListFeatureCollection features = buildFeatureCollection(featureType, table, geoColIdx, in);
 
             switch (parameters.m_format) {
@@ -187,7 +193,7 @@ public final class GeoFileWriterNodeFactory extends DefaultNodeFactory {
             if (i == geoColIdx) {
                 builder.add(name, Geometry.class, crs);
             } else {
-                builder.add(name, String.class);
+                builder.add(name, GeoTypeMapping.javaTypeFor(spec.getColumnSpec(i).getType()));
             }
         }
         return builder.buildFeatureType();
@@ -211,8 +217,7 @@ public final class GeoFileWriterNodeFactory extends DefaultNodeFactory {
                     final var cell = row.getCell(i);
                     builder.add(cell.isMissing() ? null : GeoTypeMapping.toJtsGeometry((GeoValue)cell));
                 } else {
-                    final var cell = row.getCell(i);
-                    builder.add(cell.isMissing() ? null : cell.toString());
+                    builder.add(GeoTypeMapping.toJavaValue(row.getCell(i)));
                 }
             }
             features.add(builder.buildFeature(row.getKey().toString()));

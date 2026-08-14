@@ -76,7 +76,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.geotools.api.data.DataStore;
-import org.geotools.api.data.FileDataStore;
 import org.geotools.api.data.SimpleFeatureSource;
 import org.geotools.api.feature.simple.SimpleFeature;
 import org.geotools.api.feature.simple.SimpleFeatureType;
@@ -113,6 +112,7 @@ import org.knime.geospatial.core.data.cell.GeoCell;
 import org.knime.geospatial.core.data.cell.GeoCellFactory;
 import org.knime.geospatial.core.data.reference.GeoReferenceSystem;
 import org.knime.geospatial.core.data.reference.GeoReferenceSystemFactory;
+import org.knime.geospatial.io.util.GeoFileEncoding;
 import org.knime.geospatial.io.util.GeoFileNames;
 import org.knime.geospatial.io.util.GeoFileNames.DetectedFormat;
 import org.knime.geospatial.io.util.GeoTypeMapping;
@@ -208,10 +208,10 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
             } else if (fileName.toLowerCase().endsWith(".gpkg")) {
                 table = readGeoPackageFirstLayer(path, exec);
             } else if (fileName.toLowerCase().endsWith(".zip")) {
-                table = readZippedShapefile(path, exec);
+                table = readZippedShapefile(path, exec, parameters.m_encoding);
             } else {
                 // .shp and anything else GeoTools' shapefile reader can open directly
-                table = readShapefile(path, exec);
+                table = readShapefile(path, exec, parameters.m_encoding);
             }
             out.setOutData(0, table);
         } catch (final CanceledExecutionException | KNIMEException e) {
@@ -221,14 +221,17 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
         }
     }
 
-    private static BufferedDataTable readShapefile(final FSPath path, final org.knime.core.node.ExecutionContext exec)
-        throws Exception {
+    private static BufferedDataTable readShapefile(final FSPath path, final org.knime.core.node.ExecutionContext exec,
+        final GeoFileEncoding encoding) throws Exception {
         final LocalFileHandle local = LocalFileStaging.resolveExistingToLocalFile(path);
         try {
-            final FileDataStore dataStore =
-                new ShapefileDataStoreFactory().createDataStore(java.nio.file.Path.of(local.path()).toUri().toURL());
+            final Map<String, Object> params = new HashMap<>();
+            params.put(ShapefileDataStoreFactory.URLP.key,
+                java.nio.file.Path.of(local.path()).toUri().toURL());
+            encoding.toCharset().ifPresent(cs -> params.put(ShapefileDataStoreFactory.DBFCHARSET.key, cs.name()));
+            final DataStore dataStore = new ShapefileDataStoreFactory().createDataStore(params);
             try {
-                final SimpleFeatureSource source = dataStore.getFeatureSource();
+                final SimpleFeatureSource source = dataStore.getFeatureSource(dataStore.getTypeNames()[0]);
                 return featureSourceToTable(source, exec);
             } finally {
                 dataStore.dispose();
@@ -239,12 +242,14 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
     }
 
     private static BufferedDataTable readZippedShapefile(final FSPath path,
-        final org.knime.core.node.ExecutionContext exec) throws Exception {
+        final org.knime.core.node.ExecutionContext exec, final GeoFileEncoding encoding)
+        throws Exception {
         final LocalFileHandle local = LocalFileStaging.resolveExistingToLocalFile(path);
         try {
             final URL zipUrl = new URL("jar:" + java.nio.file.Path.of(local.path()).toUri().toURL() + "!/");
             final Map<String, Object> params = new HashMap<>();
             params.put(ShapefileDataStoreFactory.URLP.key, zipUrl);
+            encoding.toCharset().ifPresent(cs -> params.put(ShapefileDataStoreFactory.DBFCHARSET.key, cs.name()));
             final DataStore dataStore = new ShapefileDataStoreFactory().createDataStore(params);
             try {
                 final SimpleFeatureSource source =

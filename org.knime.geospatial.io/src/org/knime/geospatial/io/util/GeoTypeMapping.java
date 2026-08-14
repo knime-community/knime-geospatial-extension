@@ -59,19 +59,25 @@ import org.geotools.api.feature.simple.SimpleFeatureType;
 import org.geotools.api.feature.type.AttributeDescriptor;
 import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
 import org.geotools.referencing.CRS;
+import org.knime.core.data.BooleanValue;
 import org.knime.core.data.DataCell;
 import org.knime.core.data.DataColumnSpec;
 import org.knime.core.data.DataColumnSpecCreator;
 import org.knime.core.data.DataRow;
 import org.knime.core.data.DataTableSpec;
 import org.knime.core.data.DataType;
+import org.knime.core.data.DoubleValue;
+import org.knime.core.data.IntValue;
+import org.knime.core.data.LongValue;
 import org.knime.core.data.def.BooleanCell;
 import org.knime.core.data.def.DoubleCell;
 import org.knime.core.data.def.IntCell;
 import org.knime.core.data.def.LongCell;
 import org.knime.core.data.def.StringCell;
 import org.knime.core.data.time.localdate.LocalDateCellFactory;
+import org.knime.core.data.time.localdate.LocalDateValue;
 import org.knime.core.data.time.localdatetime.LocalDateTimeCellFactory;
+import org.knime.core.data.time.localdatetime.LocalDateTimeValue;
 import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.KNIMEException;
 import org.knime.core.node.message.Message;
@@ -167,6 +173,72 @@ public final class GeoTypeMapping {
     }
 
     /**
+     * Reverse of {@link #knimeTypeFor}: the Java class a GeoTools attribute should be bound to for a given KNIME
+     * column {@link DataType}, so writing preserves the column's real type instead of stringifying everything.
+     */
+    public static Class<?> javaTypeFor(final DataType type) {
+        if (type.equals(BooleanCell.TYPE)) {
+            return Boolean.class;
+        } else if (type.equals(IntCell.TYPE)) {
+            return Integer.class;
+        } else if (type.equals(LongCell.TYPE)) {
+            return Long.class;
+        } else if (type.equals(DoubleCell.TYPE)) {
+            return Double.class;
+        } else if (type.equals(LocalDateTimeCellFactory.TYPE)) {
+            return LocalDateTime.class;
+        } else if (type.equals(LocalDateCellFactory.TYPE)) {
+            return LocalDate.class;
+        }
+        return String.class;
+    }
+
+    /**
+     * Reverse of {@link #toDataCell}: extracts the native Java value a {@link DataCell} carries (matching
+     * {@link #javaTypeFor}'s binding) to hand to a GeoTools {@code SimpleFeatureBuilder}/feature attribute, so
+     * numeric/boolean/date columns keep their real type on write instead of going through {@link Object#toString()}.
+     */
+    public static Object toJavaValue(final DataCell cell) {
+        if (cell.isMissing()) {
+            return null;
+        } else if (cell instanceof BooleanValue bv) {
+            return bv.getBooleanValue();
+        } else if (cell instanceof IntValue iv) {
+            return iv.getIntValue();
+        } else if (cell instanceof LongValue lv) {
+            return lv.getLongValue();
+        } else if (cell instanceof DoubleValue dv) {
+            return dv.getDoubleValue();
+        } else if (cell instanceof LocalDateTimeValue ldtv) {
+            return ldtv.getLocalDateTime();
+        } else if (cell instanceof LocalDateValue ldv) {
+            return ldv.getLocalDate();
+        }
+        return cell.toString();
+    }
+
+    /**
+     * Like {@link #javaTypeFor}, but downgrades {@code LocalDate}/{@code LocalDateTime} to {@code String} - unlike
+     * Shapefile (which silently degrades an unsupported attribute binding to a DBF text field), GeoTools' GeoPackage
+     * writer throws {@code Unable to map <column>(java.time.LocalDate)} at schema-creation time for a native
+     * java.time binding, since its JDBC-backed SQLite dialect has no mapping for it. Mirrors the Python
+     * GeoPackageWriterNode's own explicit workaround ({@code gdf[time_columns].astype(str)} before
+     * {@code to_file(driver="GPKG")}).
+     */
+    public static Class<?> javaTypeForGeoPackage(final DataType type) {
+        final Class<?> general = javaTypeFor(type);
+        return general == LocalDate.class || general == LocalDateTime.class ? String.class : general;
+    }
+
+    /** Value-side counterpart of {@link #javaTypeForGeoPackage}. */
+    public static Object toJavaValueForGeoPackage(final DataCell cell) {
+        if (!cell.isMissing() && (cell instanceof LocalDateTimeValue || cell instanceof LocalDateValue)) {
+            return cell.toString();
+        }
+        return toJavaValue(cell);
+    }
+
+    /**
      * Converts a JTS {@link Geometry} plus its layer's coordinate reference system into a KNIME geometry
      * {@link DataCell}, via WKB + {@link GeoCellFactory} — the same construction path the Python extension's
      * Java-side type bridge ({@code org.knime.geospatial.python}'s {@code knime/types/geospatial.py}) targets, so
@@ -201,9 +273,10 @@ public final class GeoTypeMapping {
 
     /**
      * Determines the CRS to use for a geometry column being written out: the common CRS shared by all non-missing
-     * {@link GeoValue}s, or WGS84 if every value in the column is missing. Mirrors the Python extension's
-     * {@code ToGeoPandasColumnConverter}, which likewise skips missing values and raises rather than silently
-     * picking a CRS when a column mixes more than one.
+     * {@link GeoValue}s, or {@code null} if every value in the column is missing - callers pass that through as an
+     * unset CRS rather than guessing one, since there is nothing in the column to derive it from. Mirrors the Python
+     * extension's {@code ToGeoPandasColumnConverter}, which likewise skips missing values and raises rather than
+     * silently picking a CRS when a column mixes more than one.
      *
      * @throws KNIMEException if the column contains values with more than one distinct CRS
      */
@@ -227,7 +300,7 @@ public final class GeoTypeMapping {
                     + "'."));
             }
         }
-        return crs == null ? org.geotools.referencing.crs.DefaultGeographicCRS.WGS84 : crs;
+        return crs;
     }
 
     /**
