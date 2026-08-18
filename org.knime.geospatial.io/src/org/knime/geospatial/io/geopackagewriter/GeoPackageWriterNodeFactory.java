@@ -53,9 +53,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 import org.geotools.api.data.SimpleFeatureWriter;
 import org.geotools.api.feature.simple.SimpleFeatureType;
@@ -66,6 +74,7 @@ import org.geotools.geopkg.FeatureEntry;
 import org.geotools.geopkg.GeoPackage;
 import org.knime.core.data.DataRow;
 import org.knime.core.data.DataTableSpec;
+import org.knime.core.data.def.BooleanCell;
 import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.ExecutionContext;
@@ -187,7 +196,7 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
 
     private static void writeLayer(final Path localFile, final BufferedDataTable table, final int geoColIdx,
         final String layerName, final ExecutionContext exec) throws IOException, CanceledExecutionException,
-    	IndexOutOfBoundsException, KNIMEException {
+    	IndexOutOfBoundsException, KNIMEException, SQLException {
         try (var geoPackage = new GeoPackage(new File(localFile.toString()))) {
             // Required even for an existing file - a brand-new local staging file has no gpkg_contents/
             // gpkg_geometry_columns schema yet, so geoPackage.features() below throws "no such table:
@@ -224,6 +233,7 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
                 // ("Entry must have bounds") otherwise, on every very first write to a new layer.
                 entry.setBounds(computeBounds(table, geoColIdx, crs));
                 geoPackage.create(entry, featureType);
+                fixBooleanColumnTypes(localFile, layerName, booleanColumnNames(spec, geoColIdx));
             }
 
             // append=false: replace the layer's existing content rather than appending to it, matching the Python
@@ -252,6 +262,63 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
                     writer.write();
                     rowIdx++;
                 }
+            }
+        }
+    }
+
+    private static List<String> booleanColumnNames(final DataTableSpec spec, final int geoColIdx) {
+        final List<String> names = new ArrayList<>();
+        for (int i = 0; i < spec.getNumColumns(); i++) {
+            if (i != geoColIdx && spec.getColumnSpec(i).getType().equals(BooleanCell.TYPE)) {
+                names.add(spec.getColumnSpec(i).getName());
+            }
+        }
+        return names;
+    }
+
+    /**
+     * Works around a GeoTools/GeoPackage bug: {@link GeoPackage#create(FeatureEntry, SimpleFeatureType)} declares a
+     * {@code Boolean.class}-bound column as SQLite type {@code MEDIUMINT} rather than the GeoPackage spec's own
+     * {@code BOOLEAN} type - verified empirically that GeoTools' own GeoPackage reader correctly maps a column back
+     * to {@code Boolean} only when its declared SQL type is literally {@code BOOLEAN}; with {@code MEDIUMINT} it
+     * reads back as plain {@code Integer} (0/1), losing the column's boolean-ness on every read. Patches the just-
+     * created (still-empty) table's stored {@code CREATE TABLE} text via SQLite's {@code writable_schema} pragma -
+     * the table's actual storage is untouched (both type names have integer-compatible affinity), only the
+     * annotation text changes, which is all a later, independent read needs to map the column back to
+     * {@code Boolean} correctly. Verified this does not disturb the write that follows in the same still-open
+     * {@link GeoPackage} connection.
+     */
+    private static void fixBooleanColumnTypes(final Path localFile, final String layerName,
+        final List<String> booleanColumns) throws SQLException {
+        if (booleanColumns.isEmpty()) {
+            return;
+        }
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + localFile)) {
+            try (Statement pragmaOn = conn.createStatement()) {
+                pragmaOn.execute("PRAGMA writable_schema=ON");
+            }
+            String ddl;
+            try (PreparedStatement select =
+                conn.prepareStatement("SELECT sql FROM sqlite_master WHERE type='table' AND name=?")) {
+                select.setString(1, layerName);
+                try (ResultSet rs = select.executeQuery()) {
+                    if (!rs.next()) {
+                        return;
+                    }
+                    ddl = rs.getString(1);
+                }
+            }
+            for (final String column : booleanColumns) {
+                ddl = ddl.replaceAll("(?i)(\"" + Pattern.quote(column) + "\")\\s+\\w+", "$1 BOOLEAN");
+            }
+            try (PreparedStatement update =
+                conn.prepareStatement("UPDATE sqlite_master SET sql=? WHERE type='table' AND name=?")) {
+                update.setString(1, ddl);
+                update.setString(2, layerName);
+                update.executeUpdate();
+            }
+            try (Statement pragmaOff = conn.createStatement()) {
+                pragmaOff.execute("PRAGMA writable_schema=OFF");
             }
         }
     }

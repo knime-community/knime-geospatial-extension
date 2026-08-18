@@ -54,7 +54,6 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,8 +82,6 @@ import org.geotools.data.shapefile.ShapefileDataStoreFactory;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.feature.FeatureCollection;
 import org.geotools.geojson.feature.FeatureJSON;
-import org.geotools.kml.KMLConfiguration;
-import org.geotools.xsd.Parser;
 import org.knime.core.data.DataCell;
 import org.knime.core.data.DataColumnSpec;
 import org.knime.core.data.DataColumnSpecCreator;
@@ -133,10 +130,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * Node factory for GeoFile Reader, 1:1 mirroring {@code GeoFileReaderNode} in the Python Geospatial Analytics
  * Extension's {@code knime_extension/src/nodes/io.py}.
  * <p>
- * KML/KMZ is read via GeoTools' KML binding rather than the Python node's GDAL driver, so the exact attribute
- * columns produced can differ — the geometry and {@code name}/{@code description}-style fields carry over, but this
- * is not byte-for-byte identical to GDAL's KML driver output. MapInfo TAB is not implemented — no GeoTools module for
- * it exists at all (confirmed absent from the OSGeo Maven repository for this GeoTools version) — and fails with a
+ * KML/KMZ is read via {@link KmlReader}, a hand-rolled parser matching GDAL's OGR KML driver's exact schema (the
+ * library the Python node reads KML/KMZ through) rather than GeoTools' own KML binding, whose output is structurally
+ * different and silently drops {@code ExtendedData}. MapInfo TAB is not implemented — no GeoTools module for it
+ * exists at all (confirmed absent from the OSGeo Maven repository for this GeoTools version) — and fails with a
  * clear error rather than silently producing wrong output.
  */
 public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
@@ -195,7 +192,7 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
             final BufferedDataTable table;
             if (format == DetectedFormat.KML) {
                 try (InputStream kmlIn = Files.newInputStream(path)) {
-                    table = readKml(kmlIn, exec);
+                    table = KmlReader.read(kmlIn, exec);
                 }
             } else if (format == DetectedFormat.KMZ) {
                 table = readKmz(path, exec);
@@ -358,55 +355,6 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
         container.addRowToTable(row);
     }
 
-    private static BufferedDataTable readKml(final InputStream kmlContent, final ExecutionContext exec)
-        throws Exception {
-        final Object parsed = new Parser(new KMLConfiguration()).parse(kmlContent);
-        final List<SimpleFeature> placemarks = new ArrayList<>();
-        collectPlacemarks(parsed, placemarks);
-        if (placemarks.isEmpty()) {
-            throw new KNIMEException("The KML file contains no placemarks with a geometry.");
-        }
-        return placemarksToTable(placemarks, exec);
-    }
-
-    /**
-     * Recursively walks a GeoTools KML parse result — a tree of {@link SimpleFeature}s (Document/Folder containers
-     * nesting further containers or {@link Collection}s of them) down to the leaf Placemark features, each of which
-     * carries a non-null default geometry. Any feature with a non-null default geometry is treated as a leaf and
-     * collected without recursing further into its own attributes.
-     */
-    private static void collectPlacemarks(final Object node, final List<SimpleFeature> out) {
-        if (node instanceof SimpleFeature feature) {
-            if (feature.getFeatureType().getGeometryDescriptor() != null && feature.getDefaultGeometry() != null) {
-                out.add(feature);
-            } else {
-                for (final Object value : feature.getAttributes()) {
-                    collectPlacemarks(value, out);
-                }
-            }
-        } else if (node instanceof Collection<?> collection) {
-            for (final Object item : collection) {
-                collectPlacemarks(item, out);
-            }
-        }
-    }
-
-    private static BufferedDataTable placemarksToTable(final List<SimpleFeature> placemarks,
-        final ExecutionContext exec) throws KNIMEException, CanceledExecutionException {
-        // KML's binding uses one uniform FeatureType for every Placemark, so the first one's schema applies to all.
-        final SimpleFeatureType featureType = placemarks.get(0).getFeatureType();
-        final DataTableSpec spec = GeoTypeMapping.toTableSpec(featureType);
-        final int geoColIdx = geometryColumnIndex(featureType);
-        final BufferedDataContainer container = exec.createDataContainer(spec, false);
-        long rowIdx = 0;
-        for (final SimpleFeature feature : placemarks) {
-            exec.checkCanceled();
-            addFeatureRow(feature, spec, geoColIdx, container, rowIdx++);
-        }
-        container.close();
-        return container.getTable();
-    }
-
     private static BufferedDataTable readKmz(final FSPath path, final ExecutionContext exec) throws Exception {
         final LocalFileHandle local = LocalFileStaging.resolveExistingToLocalFile(path);
         try {
@@ -428,7 +376,7 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
                 throw new KNIMEException("The kmz file contains no kml file.");
             }
             try (InputStream in = new ByteArrayInputStream(kmlBytes)) {
-                return readKml(in, exec);
+                return KmlReader.read(in, exec);
             }
         } finally {
             local.close();
