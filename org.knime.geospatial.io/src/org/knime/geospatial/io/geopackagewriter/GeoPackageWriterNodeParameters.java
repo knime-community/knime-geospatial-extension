@@ -150,7 +150,14 @@ final class GeoPackageWriterNodeParameters implements NodeParameters {
     @ValueSwitchWidget
     ExistingFile m_overwritePolicy = ExistingFile.FAIL;
 
-    @Widget(title = "Encoding", description = "Select the encoding for saving the data file.")
+    @Widget(title = "Encoding", description = """
+            Leave at Auto unless you have a specific reason not to: the GeoPackage specification mandates UTF-8 \
+            for text, and Auto (UTF-8) is what every other GeoPackage tool (GDAL, QGIS, ArcGIS) expects - the \
+            written file stays fully spec-compliant and portable. Selecting any other encoding writes text columns \
+            using that encoding's raw bytes instead, which any other reader (including GDAL/QGIS/ArcGIS, or this \
+            same node's Reader left on Auto) will show as garbled or fail to read - only this bundle's own \
+            GeoPackage Reader (Java), set to the exact same non-default encoding, can read it back correctly.\
+            """)
     @Advanced
     GeoFileEncoding m_encoding = GeoFileEncoding.AUTO;
 }
