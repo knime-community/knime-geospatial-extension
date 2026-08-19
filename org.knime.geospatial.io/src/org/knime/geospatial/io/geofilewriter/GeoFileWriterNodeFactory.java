@@ -200,8 +200,22 @@ public final class GeoFileWriterNodeFactory extends DefaultNodeFactory {
 
             switch (parameters.m_format) {
                 case SHAPEFILE, GEOJSON, GML -> {
-                    final SimpleFeatureType featureType =
-                        buildFeatureType(spec, geoColIdx, GeoTypeMapping.findCrs(table, geoColIdx));
+                    final boolean isShapefile =
+                        parameters.m_format == GeoFileWriterNodeParameters.GeoFileFormat.SHAPEFILE;
+                    // Shapefile needs one concrete geometry class (Point/MultiLineString/MultiPolygon/...) in its
+                    // schema - GeoTools' shapefile writer cannot determine a shape type from the abstract Geometry
+                    // class GeoJSON/GML are both fine with.
+                    final Class<? extends Geometry> geometryClass =
+                        isShapefile ? GeoTypeMapping.findConcreteGeometryClass(table, geoColIdx) : Geometry.class;
+                    // ShapefileDataStore.createSchema() always renames the geometry attribute to "the_geom"
+                    // internally (verified empirically - .shp itself has no field name for geometry at all), but the
+                    // subsequent featureStore.addFeatures() call matches attribute values against the *original*
+                    // schema's names, so requesting any other name here silently produces null-shape records with no
+                    // error at all. Naming it "the_geom" up front avoids that mismatch entirely.
+                    final String geometryColumnName =
+                        isShapefile ? "the_geom" : spec.getColumnSpec(geoColIdx).getName();
+                    final SimpleFeatureType featureType = buildFeatureType(spec, geoColIdx,
+                        GeoTypeMapping.findCrs(table, geoColIdx), geometryClass, geometryColumnName);
                     final ListFeatureCollection features = buildFeatureCollection(featureType, table, geoColIdx, in);
                     switch (parameters.m_format) {
                         case SHAPEFILE -> writeShapefile(features, destPath, parameters, openOptions);
@@ -222,15 +236,15 @@ public final class GeoFileWriterNodeFactory extends DefaultNodeFactory {
     }
 
     private static SimpleFeatureType buildFeatureType(final DataTableSpec spec, final int geoColIdx,
-        final org.geotools.api.referencing.crs.CoordinateReferenceSystem crs) {
+        final org.geotools.api.referencing.crs.CoordinateReferenceSystem crs,
+        final Class<? extends Geometry> geometryClass, final String geometryColumnName) {
         final var builder = new SimpleFeatureTypeBuilder();
         builder.setName(spec.getColumnSpec(geoColIdx).getName());
         for (int i = 0; i < spec.getNumColumns(); i++) {
-            final String name = spec.getColumnSpec(i).getName();
             if (i == geoColIdx) {
-                builder.add(name, Geometry.class, crs);
+                builder.add(geometryColumnName, geometryClass, crs);
             } else {
-                builder.add(name, GeoTypeMapping.javaTypeFor(spec.getColumnSpec(i).getType()));
+                builder.add(spec.getColumnSpec(i).getName(), GeoTypeMapping.javaTypeFor(spec.getColumnSpec(i).getType()));
             }
         }
         return builder.buildFeatureType();

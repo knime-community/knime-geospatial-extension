@@ -53,6 +53,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -152,6 +153,16 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
         final int geoColIdx = spec.findColumnIndex(parameters.m_geoColumn);
         final ExecutionContext exec = in.getExecutionContext();
 
+        // A blank layer name reaches GeoPackage.create()/GeoTools as a literal empty-string SQL table name. SQLite
+        // itself accepts a quoted "" identifier, but the JDBC driver's DatabaseMetaData.getPrimaryKeys() then throws
+        // "Invalid table name: ''" on it, so GeoTools can never detect a primary key for that table and permanently
+        // treats it as a read-only FeatureSource - every future write attempt against that same (now-poisoned)
+        // layer name fails with the misleading "IOException: is read only", even though the file itself is
+        // perfectly writable. Reject this up front instead of silently creating an unusable layer.
+        if (parameters.m_layer == null || parameters.m_layer.isBlank()) {
+            throw new KNIMEException("Output layer name must not be empty.");
+        }
+
         final Consumer<StatusMessage> statusConsumer = msg -> {
             if (msg.getType() == StatusMessage.MessageType.WARNING || msg.getType() == StatusMessage.MessageType.ERROR) {
                 out.setWarningMessage(msg.getMessage());
@@ -181,13 +192,18 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
                     "Output file \"" + destPath + "\" already exists - must not overwrite as per user setting");
             }
 
-            Path localFile;
-            LocalFileHandle existingLocal = null;
+            // Always stage into a fresh, guaranteed-writable local temp file - never write in place into whatever
+            // resolveExistingToLocalFile() hands back. That method is a read-oriented utility (its every other use
+            // in this codebase is a Reader resolving a file to read from); this codebase's convention is to only
+            // ever write to a local staging file and upload it afterwards. Seeding the fresh staging file with the
+            // existing destination's bytes (when overwriting a layer into an already-existing file) preserves the
+            // existing layers for the create-vs-overwrite logic in writeLayer() below, exactly as if it had been
+            // opened in place.
+            final Path localFile = LocalFileStaging.createLocalStagingFile("geopackagewriter-", ".gpkg");
             if (destExists) {
-                existingLocal = LocalFileStaging.resolveExistingToLocalFile(destPath);
-                localFile = Path.of(existingLocal.path());
-            } else {
-                localFile = LocalFileStaging.createLocalStagingFile("geopackagewriter-", ".gpkg");
+                try (LocalFileHandle existingLocal = LocalFileStaging.resolveExistingToLocalFile(destPath)) {
+                    Files.copy(Path.of(existingLocal.path()), localFile, StandardCopyOption.REPLACE_EXISTING);
+                }
             }
 
             try {
@@ -196,11 +212,7 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
                     new java.nio.file.OpenOption[]{StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING};
                 LocalFileStaging.uploadFileTo(localFile, destPath, openOptions);
             } finally {
-                if (existingLocal != null) {
-                    existingLocal.close();
-                } else {
-                    LocalFileStaging.deleteQuietly(localFile);
-                }
+                LocalFileStaging.deleteQuietly(localFile);
             }
         } catch (final CanceledExecutionException | KNIMEException e) {
             throw e;
@@ -213,10 +225,27 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
         final String layerName, final ExecutionContext exec,
         final org.knime.geospatial.io.util.GeoFileEncoding encoding) throws IOException, CanceledExecutionException,
     	IndexOutOfBoundsException, KNIMEException, SQLException {
-        try (var geoPackage = new GeoPackage(new File(localFile.toString()))) {
+        // Overwriting an existing layer must fully replace its schema, not just its rows - matching GeoPandas' own
+        // to_file(..., layer=...) semantics (documented in the Python node's own docstring as "the layer will be
+        // overwritten without a warning"). Reusing the existing on-disk table's own schema instead (by opening a
+        // writer against its pre-existing FeatureEntry) made the attribute writes below go by GeoTools feature-
+        // attribute *position*, which silently mismatched whenever the existing table's column count/order differed
+        // from the new data's (e.g. an extra "id" column left over from a prior Python write) - so drop it first,
+        // via a completely separate GeoPackage instance/connection that is discarded afterwards, and only then open
+        // a fresh one to (re)create the entry from this write's own featureType. Doing the drop+recreate through the
+        // same still-open GeoPackage object risked its ContentDataStore serving stale cached schema/type-name state
+        // for the entry it had just seen deleted out from under it via raw SQL.
+        try (var probe = new GeoPackage(new File(localFile.toString()))) {
             // Required even for an existing file - a brand-new local staging file has no gpkg_contents/
-            // gpkg_geometry_columns schema yet, so geoPackage.features() below throws "no such table:
-            // gpkg_contents" without this; safe/idempotent to call on an already-initialized file too.
+            // gpkg_geometry_columns schema yet, so probe.features() below throws "no such table: gpkg_contents"
+            // without this; safe/idempotent to call on an already-initialized file too.
+            probe.init();
+            if (probe.features().stream().anyMatch(candidate -> candidate.getTableName().equals(layerName))) {
+                dropExistingLayer(localFile, layerName);
+            }
+        }
+
+        try (var geoPackage = new GeoPackage(new File(localFile.toString()))) {
             geoPackage.init();
             final DataTableSpec spec = table.getDataTableSpec();
             final var crs = GeoTypeMapping.findCrs(table, geoColIdx);
@@ -233,24 +262,13 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
             }
             final SimpleFeatureType featureType = builder.buildFeatureType();
 
-            final List<FeatureEntry> existingEntries = geoPackage.features();
-            FeatureEntry entry = null;
-            for (final FeatureEntry candidate : existingEntries) {
-                if (candidate.getTableName().equals(layerName)) {
-                    entry = candidate;
-                    break;
-                }
-            }
-            final boolean layerAlreadyExists = entry != null;
-            if (!layerAlreadyExists) {
-                entry = new FeatureEntry();
-                entry.setTableName(layerName);
-                // GeoPackage.create() requires bounds to be set up front - it throws IllegalArgumentException
-                // ("Entry must have bounds") otherwise, on every very first write to a new layer.
-                entry.setBounds(computeBounds(table, geoColIdx, crs));
-                geoPackage.create(entry, featureType);
-                fixBooleanColumnTypes(localFile, layerName, booleanColumnNames(spec, geoColIdx));
-            }
+            final FeatureEntry entry = new FeatureEntry();
+            entry.setTableName(layerName);
+            // GeoPackage.create() requires bounds to be set up front - it throws IllegalArgumentException
+            // ("Entry must have bounds") otherwise, on every very first write to a new layer.
+            entry.setBounds(computeBounds(table, geoColIdx, crs));
+            geoPackage.create(entry, featureType);
+            fixBooleanColumnTypes(localFile, layerName, booleanColumnNames(spec, geoColIdx));
 
             // Non-UTF-8 charsets only make sense for the columns GeoTools would otherwise store as TEXT - see
             // GeoPackageTextEncoding's own javadoc for why this bypasses GeoTools/JDBC's UTF-8-only text handling
@@ -326,6 +344,57 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
             }
         }
         return names;
+    }
+
+    /**
+     * Fully removes an existing layer - its data table, spatial index shadow tables, and every {@code gpkg_*}
+     * bookkeeping row referencing it - so it can be recreated from scratch with a new schema.
+     * {@link GeoPackage#deleteGeoPackageContentsEntry}/{@code deleteGeometryColumnsEntry} exist for exactly this but
+     * are package-private to {@code org.geotools.geopkg}, so this replicates them via raw SQL instead.
+     */
+    private static void dropExistingLayer(final Path localFile, final String layerName) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + localFile);
+            Statement stmt = conn.createStatement()) {
+            final List<String> rtreeTables = new ArrayList<>();
+            try (PreparedStatement select =
+                conn.prepareStatement("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ? ESCAPE '\\'")) {
+                select.setString(1, "rtree\\_" + escapeLike(layerName) + "\\_%");
+                try (ResultSet rs = select.executeQuery()) {
+                    while (rs.next()) {
+                        rtreeTables.add(rs.getString(1));
+                    }
+                }
+            }
+            for (final String rtreeTable : rtreeTables) {
+                stmt.execute("DROP TABLE IF EXISTS " + quoteIdentifier(rtreeTable));
+            }
+            stmt.execute("DROP TABLE IF EXISTS " + quoteIdentifier(layerName));
+            for (final String bookkeepingTable : List.of("gpkg_extensions", "gpkg_geometry_columns", "gpkg_contents",
+                "gpkg_ogr_contents")) {
+                try (PreparedStatement checkExists =
+                    conn.prepareStatement("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?")) {
+                    checkExists.setString(1, bookkeepingTable);
+                    try (ResultSet rs = checkExists.executeQuery()) {
+                        if (!rs.next()) {
+                            continue;
+                        }
+                    }
+                }
+                try (PreparedStatement delete =
+                    conn.prepareStatement("DELETE FROM " + bookkeepingTable + " WHERE table_name = ?")) {
+                    delete.setString(1, layerName);
+                    delete.executeUpdate();
+                }
+            }
+        }
+    }
+
+    private static String escapeLike(final String value) {
+        return value.replace("\\", "\\\\").replace("_", "\\_").replace("%", "\\%");
+    }
+
+    private static String quoteIdentifier(final String name) {
+        return "\"" + name.replace("\"", "\"\"") + "\"";
     }
 
     /**

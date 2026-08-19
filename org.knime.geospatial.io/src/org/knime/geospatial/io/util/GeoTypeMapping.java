@@ -304,6 +304,35 @@ public final class GeoTypeMapping {
     }
 
     /**
+     * Determines the single concrete JTS geometry class of every non-missing geometry in the column - required for
+     * Shapefile, whose schema must declare one concrete shape type ({@code Point}, {@code MultiPolygon}, etc.)
+     * rather than the abstract {@link Geometry} class GeoTools' generic {@code SimpleFeatureTypeBuilder} otherwise
+     * happily accepts for GeoJSON/GML. A column mixing more than one concrete geometry class - even a related pair
+     * like {@code Point}/{@code MultiPoint} - cannot be represented in a single Shapefile and is rejected with a
+     * clear error instead of failing deep inside GeoTools with a confusing message.
+     */
+    public static Class<? extends Geometry> findConcreteGeometryClass(final BufferedDataTable table,
+        final int geoColIdx) throws KNIMEException {
+        Class<? extends Geometry> result = null;
+        for (final DataRow row : table) {
+            final DataCell cell = row.getCell(geoColIdx);
+            if (cell.isMissing()) {
+                continue;
+            }
+            final Class<? extends Geometry> actual = toJtsGeometry((GeoValue)cell).getClass();
+            if (result == null) {
+                result = actual;
+            } else if (result != actual) {
+                throw KNIMEException.of(Message.fromSummary("Shapefile requires a single geometry type per column, "
+                    + "but this column mixes geometry types (e.g. " + result.getSimpleName() + " and "
+                    + actual.getSimpleName() + ") - use GeoJSON, GeoPackage, or GML instead, which support mixed "
+                    + "geometry types."));
+            }
+        }
+        return result == null ? org.locationtech.jts.geom.Geometry.class : result;
+    }
+
+    /**
      * Resolves a KNIME {@link GeoValue}'s CRS string (e.g. {@code "EPSG:4326"}) to a GeoTools
      * {@link CoordinateReferenceSystem}, falling back to WGS84 if the value carries no CRS or it cannot be decoded.
      */
