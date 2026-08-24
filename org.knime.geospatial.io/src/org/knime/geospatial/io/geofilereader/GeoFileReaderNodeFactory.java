@@ -204,7 +204,7 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
             } else if (fileName.toLowerCase().endsWith(".tab")) {
                 table = TabReader.read(path, exec, parameters.m_encoding);
             } else if (fileName.toLowerCase().endsWith(".gpkg")) {
-                table = readGeoPackageFirstLayer(path, exec, parameters.m_encoding);
+                table = readGeoPackageFirstLayer(path, exec);
             } else if (fileName.toLowerCase().endsWith(".zip")) {
                 table = readZippedShapefile(path, exec, parameters.m_encoding);
             } else {
@@ -226,7 +226,7 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
             final Map<String, Object> params = new HashMap<>();
             params.put(ShapefileDataStoreFactory.URLP.key,
                 java.nio.file.Path.of(local.path()).toUri().toURL());
-            encoding.toCharset().ifPresent(cs -> params.put(ShapefileDataStoreFactory.DBFCHARSET.key, cs.name()));
+            params.put(ShapefileDataStoreFactory.DBFCHARSET.key, encoding.toCharset().name());
             final DataStore dataStore = new ShapefileDataStoreFactory().createDataStore(params);
             try {
                 final SimpleFeatureSource source = dataStore.getFeatureSource(dataStore.getTypeNames()[0]);
@@ -247,7 +247,7 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
             final URL zipUrl = new URL("jar:" + java.nio.file.Path.of(local.path()).toUri().toURL() + "!/");
             final Map<String, Object> params = new HashMap<>();
             params.put(ShapefileDataStoreFactory.URLP.key, zipUrl);
-            encoding.toCharset().ifPresent(cs -> params.put(ShapefileDataStoreFactory.DBFCHARSET.key, cs.name()));
+            params.put(ShapefileDataStoreFactory.DBFCHARSET.key, encoding.toCharset().name());
             final DataStore dataStore = new ShapefileDataStoreFactory().createDataStore(params);
             try {
                 final SimpleFeatureSource source =
@@ -271,7 +271,7 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
     }
 
     private static BufferedDataTable readGeoPackageFirstLayer(final FSPath path,
-        final org.knime.core.node.ExecutionContext exec, final GeoFileEncoding encoding) throws Exception {
+        final org.knime.core.node.ExecutionContext exec) throws Exception {
         final LocalFileHandle local = LocalFileStaging.resolveExistingToLocalFile(path);
         try (final var geoPackage = new org.geotools.geopkg.GeoPackage(new java.io.File(local.path()))) {
             final var entries = geoPackage.features();
@@ -280,8 +280,7 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
             }
             final var entry = entries.get(0);
             try (var reader = geoPackage.reader(entry, null, null)) {
-                return featureReaderToTable(reader, exec, java.nio.file.Path.of(local.path()), entry.getTableName(),
-                    encoding);
+                return featureReaderToTable(reader, exec);
             }
         } finally {
             local.close();
@@ -324,42 +323,16 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
     }
 
     private static BufferedDataTable featureReaderToTable(final org.geotools.api.data.SimpleFeatureReader reader,
-        final org.knime.core.node.ExecutionContext exec, final java.nio.file.Path localFile, final String layerName,
-        final GeoFileEncoding encoding) throws Exception {
+        final org.knime.core.node.ExecutionContext exec) throws Exception {
         final SimpleFeatureType featureType = reader.getFeatureType();
         final DataTableSpec spec = GeoTypeMapping.toTableSpec(featureType);
         final int geoColIdx = geometryColumnIndex(featureType);
-
-        // Non-AUTO encodings bypass GeoTools'/the JDBC driver's own UTF-8-only text decoding entirely for TEXT
-        // columns - see GeoPackageTextEncoding's javadoc for why, and the interoperability tradeoff of doing so.
-        final var targetCharset = encoding.toCharset();
-        final List<String> textColumns = new ArrayList<>();
-        if (targetCharset.isPresent()) {
-            for (final var attr : featureType.getAttributeDescriptors()) {
-                if (attr.getType().getBinding() == String.class) {
-                    textColumns.add(attr.getLocalName());
-                }
-            }
-        }
-        final Map<Long, Map<String, String>> rawTextByFid;
-        try {
-            rawTextByFid = targetCharset.isEmpty() ? Map.of()
-                : org.knime.geospatial.io.util.GeoPackageTextEncoding.readRaw(localFile, layerName, textColumns,
-                    targetCharset.get());
-        } catch (final java.nio.charset.CharacterCodingException e) {
-            throw KNIMEException.of(Message.fromSummary("Layer \"" + layerName + "\" does not contain valid "
-                + targetCharset.get() + " text - check whether the Encoding setting matches how this file was "
-                + "actually written."), e);
-        }
 
         final BufferedDataContainer container = exec.createDataContainer(spec, false);
         long rowIdx = 0;
         while (reader.hasNext()) {
             exec.checkCanceled();
-            final SimpleFeature feature = reader.next();
-            final Map<String, String> rowOverride = rawTextByFid.get(
-                org.knime.geospatial.io.util.GeoPackageTextEncoding.Writer.parseFid(feature.getID()));
-            addFeatureRow(feature, spec, geoColIdx, container, rowIdx++, rowOverride);
+            addFeatureRow(reader.next(), spec, geoColIdx, container, rowIdx++);
         }
         container.close();
         return container.getTable();
@@ -371,30 +344,13 @@ public final class GeoFileReaderNodeFactory extends DefaultNodeFactory {
 
     private static void addFeatureRow(final SimpleFeature feature, final DataTableSpec spec, final int geoColIdx,
         final BufferedDataContainer container, final long rowIdx) throws KNIMEException {
-        addFeatureRow(feature, spec, geoColIdx, container, rowIdx, null);
-    }
-
-    /**
-     * @param rowOverride GeoPackage-specific raw-bytes-decoded text values for this row, keyed by column name (see
-     *            {@link org.knime.geospatial.io.util.GeoPackageTextEncoding}), or {@code null} for every other
-     *            format/case, where {@link GeoTypeMapping#toDataCell} is always used as-is.
-     */
-    private static void addFeatureRow(final SimpleFeature feature, final DataTableSpec spec, final int geoColIdx,
-        final BufferedDataContainer container, final long rowIdx, final Map<String, String> rowOverride)
-        throws KNIMEException {
         final DataCell[] cells = new DataCell[spec.getNumColumns()];
         for (int i = 0; i < cells.length; i++) {
             if (i == geoColIdx) {
                 cells[i] = GeoTypeMapping.toGeoCell((org.locationtech.jts.geom.Geometry)feature.getAttribute(i),
                     feature.getFeatureType().getCoordinateReferenceSystem());
             } else {
-                final String columnName = spec.getColumnSpec(i).getName();
-                if (rowOverride != null && rowOverride.containsKey(columnName)) {
-                    final String overridden = rowOverride.get(columnName);
-                    cells[i] = overridden == null ? DataType.getMissingCell() : new StringCell(overridden);
-                } else {
-                    cells[i] = GeoTypeMapping.toDataCell(feature.getAttribute(i));
-                }
+                cells[i] = GeoTypeMapping.toDataCell(feature.getAttribute(i));
             }
         }
         final DataRow row = new DefaultRow(org.knime.core.data.RowKey.createRowKey(rowIdx), cells);

@@ -51,8 +51,6 @@ package org.knime.geospatial.io.geopackagereader;
 import org.knime.filehandling.core.connections.FSCategory;
 import org.knime.filehandling.core.connections.FSLocation;
 import org.knime.filehandling.core.connections.RelativeTo;
-import org.knime.geospatial.io.util.GeoFileEncoding;
-import org.knime.node.parameters.Advanced;
 import org.knime.node.parameters.NodeParameters;
 import org.knime.node.parameters.Widget;
 import org.knime.node.parameters.migration.LoadDefaultsForAbsentFields;
@@ -75,16 +73,4 @@ final class GeoPackageReaderNodeParameters implements NodeParameters {
     @Widget(title = "Input layer name or order for reading",
         description = "The layer name in the multiple-layer data.")
     String m_layer = "";
-
-    @Widget(title = "Encoding", description = """
-            Only relevant if this file's text columns were written with a non-UTF-8 encoding by this bundle's own \
-            GeoPackage Writer (Java) - select the same encoding here to read it back correctly. Leave at Auto for \
-            any normal GeoPackage: the GeoPackage specification mandates UTF-8 for text, and every other \
-            spec-compliant tool (GDAL, QGIS, ArcGIS, this bundle's own writer on its default setting) always \
-            produces UTF-8 - Auto reads that correctly. Selecting the wrong encoding for a given file (including \
-            leaving this at Auto for a file that was written with a non-UTF-8 setting) produces wrong text, not an \
-            error.\
-            """)
-    @Advanced
-    GeoFileEncoding m_encoding = GeoFileEncoding.AUTO;
 }

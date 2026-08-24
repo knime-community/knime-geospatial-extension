@@ -172,7 +172,7 @@ final class TabReader {
             final Path dir = tabFile.getParent();
 
             final TabHeader header = parseTabHeader(tabFile);
-            final Charset charset = encoding.toCharset().orElse(header.charset());
+            final Charset charset = encoding.toCharset();
 
             final byte[] dat = Files.readAllBytes(findCompanionFile(dir, baseName, "dat"));
             final byte[] map = Files.readAllBytes(findCompanionFile(dir, baseName, "map"));
@@ -242,7 +242,7 @@ final class TabReader {
     record TabField(String name, TabFieldType type, int width, int decimals) {
     }
 
-    record TabHeader(List<TabField> fields, Charset charset) {
+    record TabHeader(List<TabField> fields) {
     }
 
     private static final Pattern FIELDS_COUNT_LINE = Pattern.compile("(?i)^Fields\\s+(\\d+)\\s*$");
@@ -252,14 +252,9 @@ final class TabReader {
 
     private static TabHeader parseTabHeader(final Path tabFile) throws IOException, KNIMEException {
         final List<String> lines = Files.readAllLines(tabFile, StandardCharsets.ISO_8859_1);
-        String charsetName = "Neutral";
         final List<TabField> fields = new ArrayList<>();
         for (int i = 0; i < lines.size(); i++) {
             final String line = lines.get(i).trim();
-            if (line.regionMatches(true, 0, "!charset", 0, 8)) {
-                charsetName = line.substring(8).trim();
-                continue;
-            }
             final Matcher fieldsMatcher = FIELDS_COUNT_LINE.matcher(line);
             if (fieldsMatcher.matches()) {
                 final int n = Integer.parseInt(fieldsMatcher.group(1));
@@ -272,7 +267,7 @@ final class TabReader {
             throw new KNIMEException(
                 "Could not find a \"Fields\" definition in the .tab file \"" + tabFile.getFileName() + "\".");
         }
-        return new TabHeader(fields, mapMapInfoCharset(charsetName));
+        return new TabHeader(fields);
     }
 
     private static TabField parseFieldLine(final String line) throws KNIMEException {
@@ -298,28 +293,6 @@ final class TabReader {
             }
         }
         return new TabField(name, type, width, decimals);
-    }
-
-    /**
-     * Maps MapInfo's {@code !charset} names to a Java {@link Charset}. Only the common Windows code pages are
-     * covered; anything unrecognized (or {@code Neutral}, which GDAL's own writer emits as plain UTF-8) falls back
-     * to UTF-8.
-     */
-    private static Charset mapMapInfoCharset(final String name) {
-        return switch (name.trim()) {
-            case "WindowsLatin1" -> Charset.forName("windows-1252");
-            case "WindowsLatin2" -> Charset.forName("windows-1250");
-            case "WindowsCyrillic" -> Charset.forName("windows-1251");
-            case "WindowsArabic" -> Charset.forName("windows-1256");
-            case "WindowsGreek" -> Charset.forName("windows-1253");
-            case "WindowsTurkish" -> Charset.forName("windows-1254");
-            case "WindowsHebrew" -> Charset.forName("windows-1255");
-            case "WindowsSimpChinese" -> Charset.forName("GBK");
-            case "WindowsTradChinese" -> Charset.forName("Big5");
-            case "WindowsJapanese" -> Charset.forName("Shift_JIS");
-            case "WindowsKorean" -> Charset.forName("EUC-KR");
-            default -> StandardCharsets.UTF_8;
-        };
     }
 
     // ------------------------------------------------------------------------------------------------------------

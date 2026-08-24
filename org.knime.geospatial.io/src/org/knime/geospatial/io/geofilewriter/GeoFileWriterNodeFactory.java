@@ -285,8 +285,7 @@ public final class GeoFileWriterNodeFactory extends DefaultNodeFactory {
             final Path localShp = localDir.resolve(destPath.getFileName().toString());
             final Map<String, Object> params = new HashMap<>();
             params.put(ShapefileDataStoreFactory.URLP.key, localShp.toUri().toURL());
-            parameters.m_encoding.toCharset()
-                .ifPresent(cs -> params.put(ShapefileDataStoreFactory.DBFCHARSET.key, cs.name()));
+            params.put(ShapefileDataStoreFactory.DBFCHARSET.key, parameters.m_encoding.toCharset().name());
             final DataStore dataStore = new ShapefileDataStoreFactory().createNewDataStore(params);
             dataStore.createSchema(features.getSchema());
             final var featureStore = (SimpleFeatureStore)dataStore.getFeatureSource(dataStore.getTypeNames()[0]);
@@ -309,7 +308,7 @@ public final class GeoFileWriterNodeFactory extends DefaultNodeFactory {
         final GeoFileWriterNodeParameters parameters, final java.nio.file.OpenOption[] openOptions)
         throws IOException {
         final var encoder = new org.geotools.xsd.Encoder(new org.geotools.gml3.GMLConfiguration());
-        parameters.m_encoding.toCharset().ifPresent(encoder::setEncoding);
+        encoder.setEncoding(parameters.m_encoding.toCharset());
         encoder.setIndenting(true);
         encoder.getNamespaces().declarePrefix(features.getSchema().getTypeName(),
             "http://" + features.getSchema().getTypeName());

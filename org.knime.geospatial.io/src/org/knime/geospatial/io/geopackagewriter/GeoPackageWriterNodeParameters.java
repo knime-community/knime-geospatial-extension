@@ -55,8 +55,6 @@ import org.knime.filehandling.core.connections.FSCategory;
 import org.knime.filehandling.core.connections.FSLocation;
 import org.knime.filehandling.core.connections.RelativeTo;
 import org.knime.geospatial.core.data.GeoValue;
-import org.knime.geospatial.io.util.GeoFileEncoding;
-import org.knime.node.parameters.Advanced;
 import org.knime.node.parameters.NodeParameters;
 import org.knime.node.parameters.NodeParametersInput;
 import org.knime.node.parameters.Widget;
@@ -149,15 +147,4 @@ final class GeoPackageWriterNodeParameters implements NodeParameters {
     @Widget(title = "If exists", description = "Specifies the action to take if the output file already exists.")
     @ValueSwitchWidget
     ExistingFile m_overwritePolicy = ExistingFile.FAIL;
-
-    @Widget(title = "Encoding", description = """
-            Leave at Auto unless you have a specific reason not to: the GeoPackage specification mandates UTF-8 \
-            for text, and Auto (UTF-8) is what every other GeoPackage tool (GDAL, QGIS, ArcGIS) expects - the \
-            written file stays fully spec-compliant and portable. Selecting any other encoding writes text columns \
-            using that encoding's raw bytes instead, which any other reader (including GDAL/QGIS/ArcGIS, or this \
-            same node's Reader left on Auto) will show as garbled or fail to read - only this bundle's own \
-            GeoPackage Reader (Java), set to the exact same non-default encoding, can read it back correctly.\
-            """)
-    @Advanced
-    GeoFileEncoding m_encoding = GeoFileEncoding.AUTO;
 }

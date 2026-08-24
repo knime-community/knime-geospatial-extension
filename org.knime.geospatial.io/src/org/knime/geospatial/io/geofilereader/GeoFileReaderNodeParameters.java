@@ -75,5 +75,5 @@ final class GeoFileReaderNodeParameters implements NodeParameters {
 
     @Widget(title = "Encoding", description = "Select the encoding for reading the data file.")
     @Advanced
-    GeoFileEncoding m_encoding = GeoFileEncoding.AUTO;
+    GeoFileEncoding m_encoding = GeoFileEncoding.UTF8;
 }

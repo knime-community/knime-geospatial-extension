@@ -50,7 +50,6 @@ package org.knime.geospatial.io.geopackagewriter;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -90,7 +89,6 @@ import org.knime.filehandling.core.defaultnodesettings.status.StatusMessage;
 import org.knime.geospatial.core.data.GeoValue;
 import org.knime.geospatial.io.geopackagewriter.GeoPackageWriterNodeParameters.ExistingFile;
 import org.knime.geospatial.io.util.GeoFileNames;
-import org.knime.geospatial.io.util.GeoPackageTextEncoding;
 import org.knime.geospatial.io.util.GeoTypeMapping;
 import org.knime.geospatial.io.util.LocalFileStaging;
 import org.knime.node.DefaultModel.ConfigureInput;
@@ -169,18 +167,6 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
             }
         };
 
-        // Python's equivalent node gives no indication whatsoever before silently producing a non-compliant (often
-        // unreadable-by-anything-else) file - warn instead, every time a non-default encoding is actually going to
-        // change what gets written.
-        if (parameters.m_encoding.toCharset().filter(cs -> !cs.equals(java.nio.charset.StandardCharsets.UTF_8))
-            .isPresent()) {
-            out.setWarningMessage("Writing with a non-default Encoding (" + parameters.m_encoding
-                + ") makes this GeoPackage non-compliant with the GeoPackage specification (UTF-8 text only) - it "
-                + "will likely show garbled text or fail to open in any other tool (GDAL, QGIS, ArcGIS), and can "
-                + "only be read back correctly by this same node's GeoPackage Reader (Java) set to the exact same "
-                + "encoding.");
-        }
-
         try (final var accessor = parameters.m_outputFile.getPathAccessor(FILE_SELECTION_CONFIG, Optional.empty())) {
             final FSPath rawDestPath = accessor.getOutputPath(statusConsumer);
             final FSPath destPath = (FSPath)rawDestPath
@@ -207,7 +193,7 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
             }
 
             try {
-                writeLayer(localFile, table, geoColIdx, parameters.m_layer, exec, parameters.m_encoding);
+                writeLayer(localFile, table, geoColIdx, parameters.m_layer, exec);
                 final var openOptions =
                     new java.nio.file.OpenOption[]{StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING};
                 LocalFileStaging.uploadFileTo(localFile, destPath, openOptions);
@@ -222,8 +208,7 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
     }
 
     private static void writeLayer(final Path localFile, final BufferedDataTable table, final int geoColIdx,
-        final String layerName, final ExecutionContext exec,
-        final org.knime.geospatial.io.util.GeoFileEncoding encoding) throws IOException, CanceledExecutionException,
+        final String layerName, final ExecutionContext exec) throws IOException, CanceledExecutionException,
     	IndexOutOfBoundsException, KNIMEException, SQLException {
         // Overwriting an existing layer must fully replace its schema, not just its rows - matching GeoPandas' own
         // to_file(..., layer=...) semantics (documented in the Python node's own docstring as "the layer will be
@@ -270,18 +255,10 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
             geoPackage.create(entry, featureType);
             fixBooleanColumnTypes(localFile, layerName, booleanColumnNames(spec, geoColIdx));
 
-            // Non-UTF-8 charsets only make sense for the columns GeoTools would otherwise store as TEXT - see
-            // GeoPackageTextEncoding's own javadoc for why this bypasses GeoTools/JDBC's UTF-8-only text handling
-            // entirely, and the real interoperability tradeoff of doing so.
-            final Optional<Charset> targetCharset = encoding.toCharset();
-            final List<String> textColumns =
-                targetCharset.isPresent() ? stringColumnNames(spec, geoColIdx) : List.of();
-
             // append=false: replace the layer's existing content rather than appending to it, matching the Python
             // node's documented "layer will be overwritten without a warning" behavior.
-            try (SimpleFeatureWriter writer = geoPackage.writer(entry, false, Filter.INCLUDE, Transaction.AUTO_COMMIT);
-                GeoPackageTextEncoding.Writer textWriter = textColumns.isEmpty() ? null
-                    : new GeoPackageTextEncoding.Writer(localFile, layerName, targetCharset.get())) {
+            try (SimpleFeatureWriter writer =
+                geoPackage.writer(entry, false, Filter.INCLUDE, Transaction.AUTO_COMMIT)) {
                 long rowIdx = 0;
                 final long rowCount = table.size();
                 for (final DataRow row : table) {
@@ -302,38 +279,10 @@ public final class GeoPackageWriterNodeFactory extends DefaultNodeFactory {
                         }
                     }
                     writer.write();
-                    if (textWriter != null) {
-                        final long fid = GeoPackageTextEncoding.Writer.parseFid(feature.getID());
-                        for (final String columnName : textColumns) {
-                            final DataCell cell = row.getCell(spec.findColumnIndex(columnName));
-                            if (!cell.isMissing()) {
-                                final String value = GeoTypeMapping.toJavaValueForGeoPackage(cell).toString();
-                                try {
-                                    textWriter.patch(fid, columnName, value);
-                                } catch (final java.nio.charset.CharacterCodingException e) {
-                                    throw KNIMEException.of(Message.fromSummary("Value \"" + value + "\" in column \""
-                                        + columnName + "\" (row " + rowIdx + ") cannot be represented in the "
-                                        + targetCharset.get() + " encoding - choose a different Encoding setting, "
-                                        + "or Auto/UTF-8, which can represent any text."), e);
-                                }
-                            }
-                        }
-                    }
                     rowIdx++;
                 }
             }
         }
-    }
-
-    private static List<String> stringColumnNames(final DataTableSpec spec, final int geoColIdx) {
-        final List<String> names = new ArrayList<>();
-        for (int i = 0; i < spec.getNumColumns(); i++) {
-            if (i != geoColIdx
-                && GeoTypeMapping.javaTypeForGeoPackage(spec.getColumnSpec(i).getType()) == String.class) {
-                names.add(spec.getColumnSpec(i).getName());
-            }
-        }
-        return names;
     }
 
     private static List<String> booleanColumnNames(final DataTableSpec spec, final int geoColIdx) {
