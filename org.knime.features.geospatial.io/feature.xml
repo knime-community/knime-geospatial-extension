@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feature
+      id="org.knime.features.geospatial.io"
+      label="KNIME Geospatial File I/O (Java)"
+      version="2.1.0.qualifier"
+      provider-name="KNIME AG, Zurich, Switzerland"
+      plugin="org.knime.geospatial.io">
+
+   <description>
+      Java-based KNIME nodes for reading and writing geospatial file formats (Shapefile,
+      GeoJSON, GeoParquet, GML, GeoPackage), interoperable with the Python-based Geospatial
+      Analytics Extension's geometry columns.
+   </description>
+
+   <copyright>
+      Copyright by KNIME AG, Zurich, Switzerland
+   </copyright>
+
+   <license url="%licenseURL">
+      See LICENSE.txt in org.knime.geospatial.io for the full license text.
+   </license>
+
+   <plugin
+         id="org.knime.geospatial.io"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+</feature>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<site>
+   <feature id="org.knime.features.geospatial.io" version="0.0.0">
+      <category name="knime-geospatial-io"/>
+   </feature>
+   <feature id="org.knime.features.geospatial.io.source" version="0.0.0">
+      <category name="knime-geospatial-io"/>
+   </feature>
+   <category-def name="knime-geospatial-io" label="Build artifacts from knime-geospatial-extension">
+      <description>
+         Build artifacts from knime-geospatial-extension
+      </description>
+   </category-def>
+</site>

@@ -1,0 +1,189 @@
+<ivy-module version="2.0">
+    <info organisation="org.knime.geospatial" module="org.knime.geospatial.io" revision="latest"/>
+
+    <dependencies>
+
+        <!-- GeoTools: Shapefile, GeoJSON, GeoPackage, GML, KML, and EPSG (CRS) support -->
+        <dependency org="org.geotools" name="gt-shapefile" rev="31.2" force="true"/>
+        <dependency org="org.geotools" name="gt-geojson" rev="31.2" force="true"/>
+        <dependency org="org.geotools" name="gt-geopkg" rev="31.2" force="true"/>
+        <dependency org="org.geotools.xsd" name="gt-xsd-gml3" rev="31.2" force="true"/>
+        <dependency org="org.geotools.xsd" name="gt-xsd-kml" rev="31.2" force="true"/>
+        <dependency org="org.geotools" name="gt-epsg-hsql" rev="31.2" force="true"/>
+        <!-- Declared directly (rather than left to come in transitively) because Ivy's m2 POM conversion otherwise
+             resolves these to their test-jar classifier instead of the real jar - see the matching <exclude> below. -->
+        <dependency org="org.geotools" name="gt-jdbc" rev="31.2" force="true"/>
+        <dependency org="org.geotools.xsd" name="gt-xsd-core" rev="31.2" force="true"/>
+        <dependency org="org.locationtech.jts" name="jts-core" rev="1.19.0" force="true"/>
+        <dependency org="tech.units" name="indriya" rev="2.1.3" force="true"/>
+        <dependency org="javax.measure" name="unit-api" rev="2.1.2" force="true"/>
+        <dependency org="com.googlecode.json-simple" name="json-simple" rev="1.1.1" force="true"/>
+
+        <!-- GeoParquet: Hadoop-free reading/writing (see HadoopFreeParquetCodecFactory for why hadoop-client-api
+             is needed at all despite that) -->
+        <dependency org="org.apache.parquet" name="parquet-hadoop" rev="1.14.4" force="true"/>
+        <dependency org="org.apache.parquet" name="parquet-column" rev="1.14.4" force="true"/>
+        <dependency org="org.apache.parquet" name="parquet-encoding" rev="1.14.4" force="true"/>
+        <dependency org="org.apache.hadoop" name="hadoop-client-api" rev="3.3.6" force="true"/>
+        <dependency org="org.xerial.snappy" name="snappy-java" rev="1.1.10.5" force="true"/>
+
+        <!-- GeoParquet: Brotli compression -->
+        <dependency org="com.aayushatharva.brotli4j" name="brotli4j" rev="1.16.0" force="true"/>
+        <dependency org="com.aayushatharva.brotli4j" name="native-linux-x86_64" rev="1.16.0" force="true"/>
+
+        <!-- Some GeoTools/Parquet modules pull their own or a sibling module's test-jar as a transitive edge that
+             Ivy's Maven-scope conversion doesn't filter out; the real (non-test) jar is declared explicitly above,
+             this just blocks the test-jar variant from being copied into lib/ alongside/instead of it. -->
+        <exclude org="org.apache.parquet" module="parquet-column" type="test-jar"/>
+        <exclude org="org.geotools" module="gt-jdbc" type="test-jar"/>
+        <exclude org="org.geotools" module="gt-referencing" type="test-jar"/>
+        <exclude org="org.geotools.xsd" module="gt-xsd-core" type="test-jar"/>
+
+        <!-- Optional GeoTools modules that came along transitively but aren't used by this bundle (raster/coverage
+             CQL filters, GeoTIFF, IAU planetary CRSes, WFS property files, bundled sample data) -->
+        <exclude org="org.geotools" module="gt-cql"/>
+        <exclude org="org.geotools" module="gt-geotiff"/>
+        <exclude org="org.geotools" module="gt-iau-wkt"/>
+        <exclude org="org.geotools" module="gt-property"/>
+        <exclude org="org.geotools" module="gt-sample-data"/>
+        <exclude org="org.geotools" module="imageio-ext-cog-commons"/>
+        <exclude org="org.geotools" module="imageio-ext-cog-reader"/>
+        <exclude org="org.geotools" module="imageio-ext-cog-streams"/>
+
+        <!-- Provided by the OSGi framework itself -->
+        <exclude org="org.osgi"/>
+
+        <!-- snappy-java's own POM pulls in its benchmark/test-only dependency graph (xerial-core, airframe-log,
+             Scala, the sbt/JUnit test-interface family) as compile-scope leaks -->
+        <exclude org="org.xerial.java" module="xerial-core"/>
+        <exclude org="org.wvlet.airframe" module="airframe-log_2.12"/>
+        <exclude org="org.scala-lang" module="scala-library"/>
+        <exclude org="org.scala-lang.modules" module="scala-collection-compat_2.12"/>
+        <exclude org="org.scala-sbt" module="test-interface"/>
+        <exclude org="com.github.sbt" module="junit-interface"/>
+        <exclude org="org.slf4j" module="slf4j-simple"/>
+        <exclude org="net.sf.ehcache" module="ehcache"/>
+        <exclude org="simple-jndi" module="simple-jndi"/>
+
+        <!-- gt-jdbc's POM marks these as <scope>test</scope> (JDBC mocking/analysis tooling), but Ivy's m2
+             conversion still pulls them into the resolved "default" conf here regardless - excluded explicitly,
+             module by module, since Ivy's conf-based test-scope filtering isn't taking effect for this dependency. -->
+        <exclude org="com.mockrunner" module="mockrunner-core"/>
+        <exclude org="com.mockrunner" module="mockrunner-jdbc"/>
+        <exclude org="com.h2database" module="h2"/>
+        <exclude org="ant" module="ant"/>
+        <exclude org="bcel" module="bcel"/>
+        <exclude org="com.kirkk" module="jaranalyzer"/>
+        <exclude org="oro" module="oro"/>
+        <exclude org="jdom" module="jdom"/>
+        <exclude org="nekohtml" module="nekohtml"/>
+        <exclude org="regexp" module="regexp"/>
+        <exclude org="jakarta-regexp" module="jakarta-regexp"/>
+        <exclude org="xerces" module="xerces"/>
+        <exclude org="commons-logging" module="commons-logging"/>
+
+        <!-- parquet-hadoop's POM marks these <scope>test</scope> too (same Ivy conf-mapping quirk as gt-jdbc above) -->
+        <exclude org="net.openhft" module="zero-allocation-hashing"/>
+        <!-- snappy-java's POM likewise -->
+        <exclude org="org.codehaus.plexus" module="plexus-classworlds"/>
+
+        <!-- test/analysis-only jars leaking onto the compile scope from various POMs -->
+        <exclude org="junit" module="junit"/>
+        <exclude org="org.junit.jupiter" module="junit-jupiter-api"/>
+        <exclude org="org.junit.jupiter" module="junit-jupiter-engine"/>
+        <exclude org="org.junit.platform" module="junit-platform-commons"/>
+        <exclude org="org.junit.platform" module="junit-platform-engine"/>
+        <exclude org="org.opentest4j" module="opentest4j"/>
+        <exclude org="org.apiguardian" module="apiguardian-api"/>
+        <exclude org="org.hamcrest" module="hamcrest-library"/>
+        <exclude org="org.mockito" module="mockito-core"/>
+        <exclude org="net.bytebuddy" module="byte-buddy"/>
+        <exclude org="net.bytebuddy" module="byte-buddy-agent"/>
+        <exclude org="org.xmlunit" module="xmlunit-core"/>
+        <exclude org="org.xmlunit" module="xmlunit-matchers"/>
+        <exclude org="net.sourceforge.groboutils" module="groboutils-core"/>
+        <exclude org="com.google.re2j" module="re2j"/>
+        <exclude org="org.junit.jupiter" module="junit-jupiter-params"/>
+        <exclude org="org.junit.platform" module="junit-platform-launcher"/>
+        <exclude org="org.junit.platform" module="junit-platform-runner"/>
+        <exclude org="org.junit.platform" module="junit-platform-suite-api"/>
+        <exclude org="com.carrotsearch" module="junit-benchmarks"/>
+
+        <!-- Already provided by KNIME's own OSGi bundles via Require-Bundle - never vendor these -->
+        <exclude org="com.google.guava" module="guava"/>
+        <exclude org="com.google.guava" module="failureaccess"/>
+        <exclude org="commons-io" module="commons-io"/>
+        <exclude org="org.apache.commons" module="commons-lang3"/>
+        <exclude org="com.fasterxml.jackson.core" module="jackson-core"/>
+        <exclude org="com.fasterxml.jackson.core" module="jackson-databind"/>
+        <exclude org="com.fasterxml.jackson.core" module="jackson-annotations"/>
+        <exclude org="com.fasterxml.jackson.datatype" module="jackson-datatype-jdk8"/>
+        <exclude org="org.slf4j" module="slf4j-api"/>
+
+        <!-- parquet-hadoop's POM declares a compile dependency on the FULL hadoop-client aggregator, which drags in
+             hadoop-common/mapreduce/Jetty/Netty/ZooKeeper/sshd/Kerberos - none of which this bundle needs, since
+             HadoopFreeParquetCodecFactory and the Hadoop-free InputFile/OutputFile APIs deliberately avoid ever
+             touching a real Hadoop runtime; only hadoop-client-api's class tokens are needed (see that class's
+             javadoc). -->
+        <exclude org="org.apache.hadoop" module="hadoop-client"/>
+        <exclude org="org.apache.hadoop" module="hadoop-common"/>
+        <exclude org="org.apache.hadoop" module="hadoop-annotations"/>
+        <exclude org="org.apache.hadoop" module="hadoop-mapreduce-client-core"/>
+        <exclude org="org.apache.hadoop" module="hadoop-hdfs-client"/>
+        <exclude org="org.apache.hadoop" module="hadoop-shaded-guava"/>
+        <exclude org="org.apache.hadoop" module="hadoop-shaded-protobuf_3_25"/>
+
+        <exclude org="org.apache.kerby" module="kerb-core"/>
+        <exclude org="org.apache.kerby" module="kerb-crypto"/>
+        <exclude org="org.apache.kerby" module="kerb-util"/>
+        <exclude org="org.apache.kerby" module="kerby-asn1"/>
+        <exclude org="org.apache.kerby" module="kerby-config"/>
+        <exclude org="org.apache.kerby" module="kerby-pkix"/>
+        <exclude org="org.apache.kerby" module="kerby-util"/>
+
+        <exclude org="org.eclipse.jetty" module="jetty-http"/>
+        <exclude org="org.eclipse.jetty" module="jetty-io"/>
+        <exclude org="org.eclipse.jetty" module="jetty-security"/>
+        <exclude org="org.eclipse.jetty" module="jetty-server"/>
+        <exclude org="org.eclipse.jetty" module="jetty-servlet"/>
+        <exclude org="org.eclipse.jetty" module="jetty-util"/>
+        <exclude org="org.eclipse.jetty" module="jetty-util-ajax"/>
+        <exclude org="org.eclipse.jetty" module="jetty-webapp"/>
+        <exclude org="org.eclipse.jetty" module="jetty-xml"/>
+
+        <exclude org="io.netty" module="netty-all"/>
+        <exclude org="io.netty" module="netty-buffer"/>
+        <exclude org="io.netty" module="netty-codec"/>
+        <exclude org="io.netty" module="netty-common"/>
+        <exclude org="io.netty" module="netty-handler"/>
+        <exclude org="io.netty" module="netty-resolver"/>
+        <exclude org="io.netty" module="netty-transport"/>
+        <exclude org="io.netty" module="netty-transport-native-epoll"/>
+        <exclude org="io.netty" module="netty-transport-native-unix-common"/>
+
+        <exclude org="org.apache.zookeeper" module="zookeeper"/>
+        <exclude org="org.apache.zookeeper" module="zookeeper-jute"/>
+        <exclude org="org.apache.sshd" module="sshd-common"/>
+        <exclude org="org.apache.sshd" module="sshd-core"/>
+        <exclude org="org.apache.sshd" module="sshd-sftp"/>
+        <exclude org="org.jline" module="jline"/>
+        <exclude org="org.jline" module="jline-terminal"/>
+
+        <!-- test/analysis-only jars that some POMs leak onto the compile scope -->
+        <exclude org="junit" module="junit"/>
+        <exclude org="org.hamcrest" module="hamcrest-core"/>
+        <exclude org="org.easymock" module="easymock"/>
+        <exclude org="org.mockito" module="mockito-all"/>
+        <exclude org="org.objenesis" module="objenesis"/>
+        <exclude org="com.google.errorprone" module="error_prone_annotations"/>
+        <exclude org="org.checkerframework" module="checker-qual"/>
+        <exclude org="com.google.j2objc" module="j2objc-annotations"/>
+        <exclude org="com.google.guava" module="listenablefuture"/>
+        <exclude org="org.jetbrains.kotlin" module="kotlin-stdlib-jdk8"/>
+        <exclude org="ch.qos.logback" module="logback-classic"/>
+        <exclude org="ch.qos.logback" module="logback-core"/>
+        <exclude org="com.squareup.okhttp3" module="okhttp"/>
+        <exclude org="com.squareup.okio" module="okio"/>
+
+    </dependencies>
+</ivy-module>

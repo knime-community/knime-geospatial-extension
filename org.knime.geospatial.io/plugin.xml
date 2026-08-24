@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.0"?>
+<plugin>
+   <extension point="org.knime.workbench.repository.categories">
+      <category
+            description="Java-based nodes for reading and writing geospatial file formats."
+            icon="icons/category.png"
+            level-id="geospatial-io"
+            name="Geospatial"
+            path="/community">
+      </category>
+   </extension>
+   <extension point="org.knime.workbench.repository.nodes">
+      <node
+            category-path="/community/geospatial-io"
+            factory-class="org.knime.geospatial.io.geofilereader.GeoFileReaderNodeFactory">
+      </node>
+      <node
+            category-path="/community/geospatial-io"
+            factory-class="org.knime.geospatial.io.geofilewriter.GeoFileWriterNodeFactory">
+      </node>
+      <node
+            category-path="/community/geospatial-io"
+            factory-class="org.knime.geospatial.io.geopackagereader.GeoPackageReaderNodeFactory">
+      </node>
+      <node
+            category-path="/community/geospatial-io"
+            factory-class="org.knime.geospatial.io.geopackagewriter.GeoPackageWriterNodeFactory">
+      </node>
+   </extension>
+</plugin>

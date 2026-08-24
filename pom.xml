@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?><project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.knime.maven</groupId>
+        <artifactId>ap.parent</artifactId>
+        <version>5.13.0</version>
+    </parent>
+
+    <groupId>sdl.harvard</groupId>
+    <artifactId>geospatial</artifactId>
+    <version>${revision}${changelist}</version>
+    <packaging>pom</packaging>
+
+    <properties>
+        <revision>2.1.0</revision>
+        <changelist>-SNAPSHOT</changelist>
+        <changelog.skip>true</changelog.skip>
+        <!-- KNIME's per-branch p2 composites are normally injected by the maven-feature-branch-extension
+             Maven core extension based on the actual git branch; that extension isn't wired up in this
+             from-scratch reactor, so fall back to the master/mainline p2 composite explicitly. -->
+        <git.branch>master</git.branch>
+    </properties>
+
+    <modules>
+        <module>org.knime.geospatial.io</module>
+        <module>org.knime.features.geospatial.io</module>
+        <module>org.knime.update.geospatial.io</module>
+    </modules>
+
+    <!-- List all repositories required for compilation here. The variables
+        are defined in knime-maven-parent/pom.xml. -->
+    <repositories>
+        <repository>
+            <id>p2-knime-core</id>
+            <layout>p2</layout>
+            <url>${knime.core.p2}</url>
+        </repository>
+        <repository>
+            <id>p2-knime-core-ui</id>
+            <layout>p2</layout>
+            <url>${knime.core.ui.p2}</url>
+        </repository>
+        <repository>
+            <id>p2-knime-tp</id>
+            <layout>p2</layout>
+            <url>${knime.tp.p2}</url>
+        </repository>
+        <repository>
+            <id>p2-knime-filehandling-core</id>
+            <layout>p2</layout>
+            <url>${knime.filehandling.core.p2}</url>
+        </repository>
+        <repository>
+            <id>p2-knime-base</id>
+            <layout>p2</layout>
+            <url>${knime.base.p2}</url>
+        </repository>
+        <repository>
+            <id>p2-knime-workbench</id>
+            <layout>p2</layout>
+            <url>${knime.workbench.p2}</url>
+        </repository>
+        <repository>
+            <id>p2-knime-shared</id>
+            <layout>p2</layout>
+            <url>${knime.shared.p2}</url>
+        </repository>
+        <repository>
+            <id>p2-knime-geospatial</id>
+            <layout>p2</layout>
+            <url>${knime.p2.repo}/knime-geospatial/master</url>
+        </repository>
+    </repositories>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.eclipse.tycho</groupId>
+                <artifactId>target-platform-configuration</artifactId>
+                <configuration>
+                    <environments>
+                        <environment>
+                            <os>linux</os>
+                            <ws>gtk</ws>
+                            <arch>x86_64</arch>
+                        </environment>
+                        <environment>
+                            <os>win32</os>
+                            <ws>win32</ws>
+                            <arch>x86_64</arch>
+                        </environment>
+                        <environment>
+                            <os>macosx</os>
+                            <ws>cocoa</ws>
+                            <arch>x86_64</arch>
+                        </environment>
+                        <environment>
+                            <os>macosx</os>
+                            <ws>cocoa</ws>
+                            <arch>aarch64</arch>
+                        </environment>
+                    </environments>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project><!-- vim: set shiftwidth=4 expandtab smarttab: -->

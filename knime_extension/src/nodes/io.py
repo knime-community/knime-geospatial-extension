@@ -145,7 +145,7 @@ class _EncodingOptions(knext.EnumParameterOptions):
 # GeoFile Reader
 ############################################
 @knext.node(
-    name="GeoFile Reader",
+    name="GeoFile Reader (Python)",
     node_type=knext.NodeType.SOURCE,
     icon_path=__NODE_ICON_PATH + "GeoFileReader.png",
     category=__category,
@@ -257,7 +257,7 @@ class GeoFileReaderNode:
 
 
 @knext.node(
-    name="GeoFile Writer",
+    name="GeoFile Writer (Python)",
     node_type=knext.NodeType.SINK,
     icon_path=__NODE_ICON_PATH + "GeoFileWriter.png",
     category=__category,
@@ -394,7 +394,7 @@ class GeoFileWriterNode:
 # GeoPackage Reader
 ############################################
 @knext.node(
-    name="GeoPackage Reader",
+    name="GeoPackage Reader (Python)",
     node_type=knext.NodeType.SOURCE,
     icon_path=__NODE_ICON_PATH + "GeoPackageReader.png",
     category=__category,
@@ -493,7 +493,7 @@ class GeoPackageReaderNode:
 # GeoPackage Writer
 ############################################
 @knext.node(
-    name="GeoPackage Writer",
+    name="GeoPackage Writer (Python)",
     node_type=knext.NodeType.SINK,
     icon_path=__NODE_ICON_PATH + "GeoPackageWriter.png",
     category=__category,

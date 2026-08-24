@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <Placemark>
+    <name>Zurich</name>
+    <description>Population 434008</description>
+    <Point><coordinates>8.5417,47.3769</coordinates></Point>
+  </Placemark>
+  <Placemark>
+    <name>Berlin</name>
+    <description>Population 3769000</description>
+    <Point><coordinates>13.405,52.52</coordinates></Point>
+  </Placemark>
+  <Placemark>
+    <name>Paris</name>
+    <description>Population 2148000</description>
+    <Point><coordinates>2.3522,48.8566</coordinates></Point>
+  </Placemark>
+  <Placemark>
+    <name>Rome</name>
+    <description>Population 2873000</description>
+    <Point><coordinates>12.4964,41.9028</coordinates></Point>
+  </Placemark>
+  <Placemark>
+    <name>Vienna</name>
+    <description>Population 1897000</description>
+    <Point><coordinates>16.3738,48.2082</coordinates></Point>
+  </Placemark>
+</Document>
+</kml>

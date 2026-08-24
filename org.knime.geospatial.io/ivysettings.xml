@@ -1,0 +1,11 @@
+<ivysettings>
+    <settings defaultResolver="default"/>
+    <resolvers>
+        <ibiblio name="maven2" m2compatible="true"/>
+        <ibiblio name="osgeo" m2compatible="true" root="https://repo.osgeo.org/repository/release/"/>
+        <chain name="default" returnFirst="true">
+            <resolver ref="osgeo"/>
+            <resolver ref="maven2"/>
+        </chain>
+    </resolvers>
+</ivysettings>
