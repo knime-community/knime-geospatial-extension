@@ -12,3 +12,15 @@ feature_dependencies:
   - org.knime.features.geospatial 4.7.0
   - org.knime.features.core 5.13.0 #the file handling nodes use the knext.File API added in 5.13
 
+# The public update.knime.com/analytics-platform/nightly channel is currently only at
+# 5.12.0 for org.knime.features.core -- it hasn't cut over to 5.13 yet, so the pin above
+# can't resolve there. The internal stable-nightly mirror already has 5.13.0. Overriding
+# just the KNIME AP repository here; community-contributions stay on the public nightly.
+override_update_sites:
+  - id: p2-knime-update-site
+    url: https://jenkins.devops.knime.com/p2/knime/analytics-platform/stable-nightly-update-site
+  - id: p2-community-trusted-update-site
+    url: https://update.knime.com/community-contributions/trusted/nightly
+  - id: p2-community-update-site
+    url: https://update.knime.com/community-contributions/nightly
+
