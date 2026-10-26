@@ -1,6 +1,6 @@
 [workspace]
 name = "geospatial_env"
-channels = ["knime/label/nightly", "knime", "conda-forge"]
+channels = ["knime/label/LTS-5-12", "knime", "conda-forge"]
 platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
 
 [tasks]
@@ -8,8 +8,8 @@ format = { cmd = "ruff format ." }
 
 [dependencies]
 python = "*"
-knime-extension = "*"
-knime-python-base = "*"
+knime-extension = "5.12.*"
+knime-python-base = "5.12.*"
 knime-python-versions = "5.12.*"   # geo-compatible build (icu-enabled libxml2 on osx-arm64)
 
 # --- geospatial extension deps (bumped to py3.13) ---
